@@ -1,0 +1,18 @@
+{
+    "Type": "CIFAR10",
+    "ClassPath": "utils_torch.Datasets.CIFAR10.DataLoaderForEpochBatchTraining",
+    "Data.Transform.Methods":[
+        {
+            "Type": "Norm2Mean0Std1",
+            "Axis": [0, 1, 2],
+        },
+    ]
+    "Modules":{
+        "PrepareBatches":{
+            "Type": "Internal", // Internal methods.
+        },
+        "GetBatch":{
+            "Type": "Internal",
+        },
+    }
+}

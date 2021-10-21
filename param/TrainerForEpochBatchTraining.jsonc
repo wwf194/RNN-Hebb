@@ -1,0 +1,81 @@
+{
+
+    "__ResolveBase__": true,
+    "Type": "TrainerForEpochBatchTraining",
+    "Method": "GradientDescend",
+    "Epoch.Num": "Auto",
+    "Batch.Size": 128,
+    "Task": "$^param.task.Task",
+
+    "Modules":{
+        "CheckPointSave":{
+            "Type": "CheckPointForEpochBatchTraining",
+            "Epoch.Num": "$Epoch.Num",
+            "Batch.Num": "Batch.Num",
+        },
+        "CheckPointAnalyze":{
+            "Type": "CheckPointForEpochBatchTraining",
+            "Epoch.Num": "$Epoch.Num",
+            "Batch.Num": "Batch.Num",
+        },
+        "AnalyzeAfterBatch":{
+            "Type": "External"
+        },
+        "SaveAndLoad":{
+            "Type": "External"
+        }
+    },
+    "Dynamics":{
+        "Main":{
+            "In": ["EpochNum", "BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
+            "Routings":[
+                "NotifyEpochBatchList |--> &BeforeTrain",
+                "&ClearEpoch",
+                "BatchParam, OptimizeParam |--> &TrainEpoch | RepeatTime=EpochNum",
+            ]
+        },
+        "BeforeTrain":{
+            "In": ["NotifyEpochBatchList"],
+            "Routings":[
+                "NotifyEpochBatchList |--> Register2NotifyEpochBatchList",
+            ],
+        },
+        "TrainEpoch":{
+            "In": ["BatchParam", "OptimizeParam"],
+            "Routings": [
+                "&ClearBatch", "&AddEpoch",
+                "BatchParam |--> &^agent.InitBeforeEpoch |--> BatchNum",
+                "BatchParam, OptimizeParam |--> &TrainBatch || RepeatTime=BatchNum",
+            ],
+        },
+        "TrainBatch":{
+            "In": ["BatchParam", "OptimizeParam", "BatchNum"],
+            "Out": ["HasNextBatch"],
+            "Routings": [
+                "&AddBatch",
+                "&NotifyEpochBatch",
+                "BatchParam, OptimizeParam |--> &Train",
+                "&CheckPointSave.AddBatchAndReturnIsCheckPoint |--> IsSave",
+                "&CheckPointAnalyze.AddBatchAndReturnIsCheckPoint |--> IsAnalyze",
+                "&SaveAndLoad || Condition=%IsSave",
+                "&AnalyzeAfterBatch || Condition=%IsAnalyze",
+            ],
+        },
+        "Train":{
+            "Input": ["BatchParam", "&OptimizeParam"], // Content of input args.
+            "In":["BatchParam", "OptimizeParam"], // Name of input args.
+            "Routings": [
+                "OptimizeParam |--> &#utils_torch.train.ParseOptimizeParamEpochBatch",
+                "TrajectoryParam, OptimizeParam |--> &^object.agent.Dynamics.Train"
+            ],
+        },
+        "Test":{
+            "Input": ["&BatchParam", "&OptimizeParam"], // Content of input args.
+            "In":["BatchParam", "OptimizeParam"], // Name of input args.
+            "Routings": [
+                "OptimizeParam |--> &#utils_torch.train.ParseOptimizeParamEpochBatch",
+                "TrajectoryParam, OptimizeParam |--> &^object.agent.Dynamics.Test"
+            ],
+        }
+    },
+}

@@ -1,0 +1,310 @@
+{
+    "Type": "RNNLIF",
+    "InitTasks":[],
+    "Neurons":{
+        "Input":{
+            "Num":"__ToBeSet__"
+        },
+        "Recurrent":{
+            "Num": "$^param.agent.HiddenNeurons.Num.($^param.agent.Task)",
+            "IsExciInhi": false,
+            "Excitatory":{
+                "Ratio": 0.8
+            },
+            "Inhibitory":{},
+            "NonLinear":"ReLU"
+        },
+        "Output":{
+            "Num": "__ToBeSet__"
+        },
+        "Num": "$Neurons.Recurrent.Num"
+    },
+    "Loss":{
+        "Prediction":{
+            "Coefficient": 1.0,
+            "Type": "CrossEntropyLossForSingleClassPrediction",
+        },
+        "WeightConstrain":{
+            "Coefficient.__value__":"Adaptive",
+            "Coefficient":{
+                "Method": "Ratio2RefLoss",
+                "Ratio": [0.05, 0.15],
+                "Reference": "&Modules.CalculatePredictionLoss",
+            },
+            "GetWeightMethods":[
+                "&*Modules.Recurrent.FiringRate2RecurrentInput.GetWeight",
+                "&*Modules.Recurrent.FiringRate2Output.GetWeight"
+            ],
+        },
+        "ActivityConstrain":{
+            "Coefficient.__value__":"Adaptive", // Adapt coefficient so that constrain loss are kept at certain ratio of total loss.
+            "Coefficient":{
+                "Method": "Ratio2RefLoss",
+                "Ratio": [0.05, 0.15],
+                "Reference": "&Modules.CalculatePredictionLoss",
+            },
+            "Activity":[ // to be implemented.
+                "cellStates", "hiddenStates"
+            ]
+        },
+    },
+    "Modules":{
+        "Recurrent":{
+            "Type":"RecurrentLIFLayer",
+            "Subtype":"f(Wx+b)",
+            //"IsExciInhi": "$Neurons.Recurrent.IsExciInhi",
+            "TimeConst": 0.1,
+            "Neurons": "$Neurons.Recurrent",
+            "Modules":{
+                "NonLinear":{
+                    "Subtype":"$Neurons.Recurrent.NonLinear",
+                },
+                "FiringRate2RecurrentInput":{
+                    "Type": "LinearLayer",
+                    "Subtype": "Wx",
+                    "IsExciInhi": "$Neurons.Recurrent.IsExciInhi",
+                    "Input.Num": "$Neurons.Recurrent.Num",
+                    "Output.Num": "$Neurons.Recurrent.Num",
+                    "NoSelfConnection": true,
+                    "Weight.Init":{
+                        "Method": "KaimingNormal",
+                        "Coefficient": 1.0e-1
+                    }
+                },
+                "FiringRate2Output":{
+                    "Type": "LinearLayer",
+                    "Subtype": "Wx",
+                    "IsExciInhi": "$Neurons.Recurrent.IsExciInhi",
+                    "Input.Num": "$Neurons.Recurrent.Num",
+                    "Output.Num": "$Neurons.Output.Num",                    
+                },
+                "CellStateDecay":{
+                    "Type": "Internal",
+                },
+                "NoiseGenerator":{
+                    "Distribution": "Gaussian",
+                    "Method": "Adaptive",
+                    "SubMethod": "FromInputStd",
+                    "StdRatio": 0.05,
+                },
+                "GetBias": {
+                    "Type": "Bias",
+                    "Size": "$Neurons.Recurrent.Num"
+                },
+            },
+            "Dynamics":{
+                "Main":{
+                    "In": ["recurrentInput", "cellState", "input"],
+                    "Out": ["recurrentInputNext", "cellStateNext", "firingRate", "output"],
+                    "Routings":[
+                        "&GetBias |--> bias",
+                        "recurrentInput, input, bias |--> &Add |--> inputTotal",
+                        "inputTotal |--> &NoiseGenerator |--> noise",
+                        "inputTotal, noise |--> &Add |--> inputTotal",
+                        "inputTotal, cellState |--> &ProcessCellStateAndTotalInput |--> cellState",
+                        "cellState |--> &NonLinear |--> firingRate",
+                        "firingRate |--> &FiringRate2RecurrentInput |--> recurrentInputNext",
+                        "firingRate |--> &FiringRate2Output |--> output",
+                        "cellState |--> &CellStateDecay |--> cellStateNext",
+                    ]
+                },
+            }
+        },
+        "Input":{
+            "Type": "NonLinearLayer",
+            "Subtype":"f(Wx+b)",
+            "Input.Num":"$Neurons.Input.Num",
+            "Output.Num":"$Neurons.Recurrent.Num",
+            "Weight.Init":{
+                "Method": "KaimingNormal",
+                "Coefficient": 1.0e-0
+            },
+            "Bias": true,
+            "NonLinear":"$Neurons.Recurrent.NonLinear"
+        },
+        "Splitter":{
+            "Type": "Lambda",
+            "Lambda": "lambda data: [data[:, :($Neurons.Recurrent.Num)], data[:, ($Neurons.Recurrent.Num):]]"
+        },
+        "Inputs":{
+            "Type":"SerialSender",
+            "Send":{
+                "Method": "Lambda",
+                "Args": "lambda List, Index: List[:, Index, :]"
+            }
+        },
+        "Outputs":{
+            "Type":"SerialReceiver",
+            "Send":{
+                "Method": "Lambda",
+                //"Args": "lambda List, Index:torch.take(input=List, index=Index, axis=1)" //torch.take requires index to be LongTensor
+                "Args": "lambda List:torch.stack(List, axis=1)"
+            }
+        },
+        "HiddenStates":{
+            "Type": "SerialReceiver",
+            "Send":{
+                "Method": "Lambda",
+                "Args": "lambda List:torch.stack(List, axis=1)"
+            }
+        },
+        "CellStates":{
+            "Type": "SerialReceiver",
+            "Send":{
+                "Method": "Lambda",
+                "Args": "lambda List:torch.stack(List, axis=1)"
+            }
+        },
+        "FiringRates":{
+            "Type": "SerialReceiver",
+            "Send":{
+                "Method": "Lambda",
+                "Args": "lambda List:torch.stack(List, axis=1)"
+            }
+        },
+        "PredictionLoss": "$Loss.Prediction",
+        "GetConstrainWeight":{
+            "Type": "FunctionsOutputs",
+            "Functions": "$Loss.WeightConstrain.GetWeightMethods"
+        },
+        "WeightConstrainLoss":{
+            "Type": "L2Loss",
+            "Coefficient": "$Loss.WeightConstrain.Coefficient",
+        },
+        "ActivityConstrainLoss":{
+            "Type": "L2Loss",
+            "Coefficient": "$Loss.ActivityConstrain.Coefficient",
+        },
+        "GradientDescend.Type":"GradientDescend"
+    },
+    "Dynamics":{
+        "Run":{
+            "In":["inputSeries", "time"],
+            "Out":["outputSeries", "hiddenStateSeries", "cellStateSeries", "firingRateSeries"],
+            "Routings":[
+                "inputSeries |--> &Inputs.Receive",
+                "&*GenerateZeroInitState, RefInput=inputSeries |--> state", // States start from zero
+                
+                "state |--> &Splitter |--> hiddenState, cellState",
+                "hiddenState, cellState |--> &Iterate |--> hiddenState, cellState || repeat=%time",
+                "&Outputs.Send |--> outputSeries",
+                "&HiddenStates.Send |--> hiddenStateSeries",
+                "&CellStates.Send |--> cellStateSeries",
+                "&FiringRates.Send |--> firingRateSeries",
+            ]
+        },
+        "Iterate":{
+            "In":["hiddenState", "cellState"],
+            "Out":["hiddenState", "cellState"],
+            "Routings":[
+                "&Inputs.Send |--> input",
+                "input |--> &Input |--> inputProcessed",
+                "hiddenState, cellState, inputProcessed |--> &Recurrent |--> hiddenState, cellState, firingRate, output",
+                "output |--> &Outputs.Receive",
+                "hiddenState |--> &HiddenStates.Receive",
+                "cellState |--> &CellStates.Receive",
+                "firingRate |--> &FiringRates.Receive",
+            ]
+        },
+        "CalculateWeightConstrainLoss":{
+            "In": ["refLoss"],
+            "Out": ["weightConstrainLoss"],
+            "Routings":[
+                "&GetConstrainWeight |--> weightConstrain",
+                "weightConstrain, refLoss |--> &WeightConstrainLoss |--> weightConstrainLoss"
+            ]
+        },
+        "CalculateActivityConstrainLoss":{
+            "In": ["activity", "refLoss"],
+            "Out": ["activityConstrainLoss"],
+            "Routings":[
+                "activity, refLoss |--> &ActivityConstrainLoss |--> activityConstrainLoss"
+            ]
+        },
+        "Optimize":{
+            "In": ["output", "outputTarget", "activity", "trainParam"],
+            "Routings":[
+                "output, outputTarget |--> &PredictionLoss |--> mainLoss",
+                "activity, mainLoss |--> &CalculateActivityConstrainLoss |--> activityConstrainLoss",
+                "mainLoss |--> &CalculateWeightConstrainLoss |--> weightConstrainLoss",
+                "mainLoss, activityConstrainLoss, weightConstrainLoss |--> &Add |--> totalLoss",
+                "totalLoss |--> &CalculateGradient",
+
+                "&*GetPlotWeight |--> plotWeight",
+                "plotWeight |--> &LogWeight", // Log weight before updating
+
+                "&*GetTrainWeight |--> trainWeight",
+                "trainWeight |--> &LogWeightStat",
+                "trainWeight, trainParam |--> &GradientDescend",
+ 
+                "output, Name='output' |--> &LogStat",
+                "outputTarget, Name='outputTarget' |--> &LogStat",
+                
+                "totalLoss, Name=TotalLoss |--> &LogLoss",
+                "mainLoss, Name=MainLoss |--> &LogLoss",
+                "activityConstrainLoss, Name=ActivityConstrainLoss |--> &LogLoss",
+                "weightConstrainLoss, Name=WeightConstrainLoss |--> &LogLoss",
+            ],
+        },
+        "OptimizeTest":{
+            "In": ["output", "outputTarget", "activity", "trainParam"],
+            "Routings":[
+                "output, outputTarget |--> &PredictionLoss |--> mainLoss",
+                "activity, mainLoss |--> &CalculateActivityConstrainLoss |--> activityConstrainLoss",
+                "mainLoss |--> &CalculateWeightConstrainLoss |--> weightConstrainLoss",
+                "mainLoss, activityConstrainLoss, weightConstrainLoss |--> &Add |--> totalLoss",
+                "totalLoss |--> &CalculateGradient",
+                
+                "&*GetPlotWeight |--> plotWeight",
+                "plotWeight, logger=DataTest |--> &LogWeight",
+
+                "&*GetTrainWeight |--> trainWeight",
+                "trainWeight, logger=DataTest |--> &LogWeightStat",
+                "trainWeight, trainParam, Update=False |--> &GradientDescend",
+                
+                "output, Name='output', logger=DataTest |--> &LogStat",
+                "outputTarget, Name='outputTarget', logger=DataTest |--> &LogStat",
+                
+                "totalLoss, Name=TotalLoss, logger=DataTest |--> &LogLoss",
+                "mainLoss, Name=MainLoss, logger=DataTest |--> &LogLoss",
+                "activityConstrainLoss, Name=ActivityConstrainLoss, logger=DataTest |--> &LogLoss",
+                "weightConstrainLoss, Name=WeightConstrainLoss, logger=DataTest |--> &LogLoss",
+            ],
+        },
+        "Train":{
+            "In":["input", "outputTarget", "trainParam"],
+            "Out":[],
+            "Routings":[
+                "input |--> &Split |--> inputInit, inputSeries, time",
+                "inputInit, inputSeries, time |--> &Run |--> outputSeries, hiddenStateSeries, cellStateSeries, firingRateSeries",
+                "hiddenStateSeries, cellStateSeries, firingRateSeries |--> &Merge |--> activity",
+                "outputSeries, outputTarget, activity, trainParam |--> &Optimize",
+
+                "hiddenStateSeries, Name=HiddenStates |-->  &LogTimeVaryingActivity",
+                "cellStateSeries,   Name=CellStates |-->    &LogTimeVaryingActivity",
+                "firingRateSeries,  Name=FiringRates |-->   &LogTimeVaryingActivity",
+                "outputSeries,      Name=Outputs |-->       &LogTimeVaryingActivity",
+                "outputTarget,      Name=OutputTargets |--> &LogTimeVaryingActivity",
+                
+                // "firingRateSeries,  Name=FiringRates |-->   &LogSpatialActivity",
+            ]
+        },
+        "Test":{
+            "In":["input", "outputTarget", "trainParam"],
+            "Out":[],
+            "Routings":[
+                "input |--> &Split |--> inputInit, inputSeries, time",
+                "inputInit, inputSeries, time |--> &Run |--> outputSeries, hiddenStateSeries, cellStateSeries, firingRateSeries",
+                "hiddenStateSeries, cellStateSeries, firingRateSeries |--> &Merge |--> activity",
+                "outputSeries, outputTarget, activity, trainParam |--> &OptimizeTest",
+
+                "hiddenStateSeries, Name=HiddenStates, logger=DataTest |--> &LogTimeVaryingActivity",
+                "cellStateSeries,   Name=CellStates, logger=DataTest   |--> &LogTimeVaryingActivity",
+                "firingRateSeries,  Name=FiringRates, logger=DataTest  |--> &LogTimeVaryingActivity",
+                "outputSeries, Name=Outputs, logger=DataTest           |--> &LogTimeVaryingActivity",
+                "outputTarget, Name=OutputTargets, logger=DataTest     |--> &LogTimeVaryingActivity",
+            ]
+        },
+        "__Entry__":"&Dynamics.Run"
+    },
+}

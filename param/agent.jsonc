@@ -1,0 +1,54 @@
+{
+    "Task": "$^param.task.Task",
+    "HiddenNeurons.Num":{
+        "PredictXYs": 100,
+        "PredictPlaceCellsActivity": 2048
+    },
+    "InitTasks":[
+        {
+            "FunctionCall": [
+                "&*SetModelInputOutput",
+                "&*ParseParam",
+            ]
+        },
+    ],
+    "Modules":{
+        "Dataset":"$param.images",
+        "model":"$^param.model",
+        "model.Input.Type": "dLDirection", //dXY
+        "model.InputInit.Type": "__ToBeSet__",
+        "model.ModulePath": "utils_torch.Models.RNNLIF",
+        "__ResolveBase__": true,
+    },
+    "Dynamics":{
+        "InitBeforeEpoch":{
+            "In": ["DataParam", "TrainParam"],
+            "Out": ["BatchNum"],
+            "Routings":[
+                "&Modules.Dataset.Clear",
+                "DataParam |--> &Modules.Dataset.PrepareBatches",
+                "&Modules.Dataset.GetBatchNum |--> BatchNum",
+            ]
+        },
+        "Train":{
+            "In":["DataParam", "TrainParam"],
+            "Out":[],
+            "Routings": [
+                "DataParam |--> &Modules.Dataset.GetBatch |--> DataBatch",
+                "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
+                "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
+                "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Train",
+            ],
+        },
+        "Test":{
+            "In":["DataParam", "TrainParam"],
+            "Out":[],
+            "Routings": [
+                "DataParam |--> &Modules.Dataset.GenerateBatch |--> DataBatch",
+                "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
+                "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
+                "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Train",
+            ],
+        }
+    }
+}
