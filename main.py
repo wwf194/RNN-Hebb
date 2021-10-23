@@ -81,24 +81,94 @@ def CleanLog():
 def CleanFigures():
     utils_torch.files.RemoveMatchedFiles("./", r".*\.png")
 
-def AddObjRefForParseRouters():
-    ObjRefLocal = utils_torch.PyObj()
-    ObjRefLocal.LogSpatialActivity = utils.model.LogSpatialActivity
-    utils_torch.model.Add2ObjRefListForParseRouters(ObjRefLocal)
-utils_torch.RegisterExternalMethods("AddObjRefForParseRouters", AddObjRefForParseRouters)
-
-def RegisterExternalMethods():
-    return
-utils_torch.RegisterExternalMethods("RegisterExternalMethods", RegisterExternalMethods)
-
 def QuickScript(Args):
     # Write temporary code here, and run by "python main.py quick"
     utils_torch.Datasets.CIFAR10.OriginalFiles2DataFile(
         LoadDir = "/data3/wangweifan/Datasets/CIFAR10/",
         SaveDir = "/data3/wangweifan/Datasets/CIFAR10/CIFAR10-Data",
     )
+    Data = utils_torch.json.DataFile2JsonObj("/data3/wangweifan/Datasets/CIFAR10/CIFAR10-Data")
     return
 
+
+def AddObjRefForParseRouters():
+    ObjRefLocal = utils_torch.PyObj()
+    ObjRefLocal.LogSpatialActivity = utils.model.LogSpatialActivity
+    utils_torch.model.Add2ObjRefListForParseRouters(ObjRefLocal)
+
+
+def RegisterExternalMethods():
+    utils_torch.RegisterExternalMethods("SaveAndLoad", SaveAndLoad)
+    utils_torch.RegisterExternalMethods("AnalyzeAfterBatch", AnalyzeAfterBatch)
+    utils_torch.RegisterExternalMethods("AnalyzeBeforeTrain", AnalyzeBeforeTrain)
+    utils_torch.RegisterExternalMethods("AddObjRefForParseRouters", AddObjRefForParseRouters)
+#utils_torch.RegisterExternalMethods("RegisterExternalMethods", RegisterExternalMethods)
+
+# External Methods that will be registered into Core Objects.
+def SaveAndLoad(ContextInfo):
+    EpochIndex = ContextInfo["EpochIndex"]
+    BatchIndex = ContextInfo["BatchIndex"]
+    ContextInfo.setdefault("ObjRoot", utils_torch.GetGlobalParam())
+    SaveDir = utils_torch.SetSubSaveDirEpochBatch("SavedModel", EpochIndex, BatchIndex)
+    utils_torch.DoTasks(
+            "&^param.task.Save", 
+            In={"SaveDir": SaveDir},
+            **ContextInfo
+        )
+    utils_torch.DoTasks(
+        "&^param.task.Load",
+        In={"SaveDir": SaveDir}, 
+        **ContextInfo
+    )
+
+def AnalyzeBeforeTrain(ContextInfo):
+    AnalyzeTest(ContextInfo)
+
+def AnalyzeAfterBatch(ContextInfo):
+    AnalyzeTrain(ContextInfo)
+    AnalyzeTest(ContextInfo)
+
+def AnalyzeTrain(ContextInfo):
+    EpochIndex = ContextInfo["EpochIndex"]
+    BatchIndex = ContextInfo["BatchIndex"]
+    logger = utils_torch.GetLogger("DataTrain")
+    utils_torch.analysis.AnalyzeLossEpochBatch(
+        Logs=logger.GetLogOfType("Loss"), **ContextInfo
+    )
+    utils_torch.analysis.AnalyzeTimeVaryingActivitiesEpochBatch(
+        Logs=logger.GetLogOfType("TimeVaryingActivity"),
+    )
+    utils_torch.analysis.AnalyzeWeightsEpochBatch(
+        Logs=logger.GetLogOfType("Weight"),
+    )
+    utils_torch.analysis.AnalyzeWeightStatAlongTrainingEpochBatch(
+        Logs=logger.GetLogOfType("Weight-Stat"), **ContextInfo
+    )
+
+    if logger.GetLogByName("MinusGrad") is not None:
+        utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
+            ResponseA=logger.GetLogByName("agent.model.FiringRates")["Value"],
+            ResponseB=logger.GetLogByName("agent.model.FiringRates")["Value"],
+            WeightUpdate=logger.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
+            Weight = logger.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
+            SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis/",
+            SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
+        )
+
+    return
+
+def AnalyzeTest(ContextInfo):
+    EpochIndex = ContextInfo["EpochIndex"]
+    BatchIndex = ContextInfo["BatchIndex"]
+    Trainer = ContextInfo["Trainer"]
+    logger = utils_torch.GetLogger("DataTest") # In test router, data are logged onto GlobalParam.log.DataTrain
+    logger.NotifyEpochIndex(EpochIndex)
+    logger.NotifyBatchIndex(BatchIndex)
+    RouterTest = Trainer.Dynamics.TestEpoch
+    return
+
+RegisterExternalMethods()
+
 if __name__=="__main__":
-    #main()
-    QuickScript(Args)
+    main()
+    #QuickScript(Args)

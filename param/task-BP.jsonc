@@ -1,5 +1,5 @@
 {
-    "Task": "PredictXYs",
+    "Task": "TrainBP",
     "Main":[
         {
             "DoTasks":"&^param.task.Init"
@@ -28,8 +28,7 @@
             "ParseParamStatic",
             {
                 "FunctionCall":[
-                    ["&^object.world.LoadFromParam"],
-                    ["&^object.agent.LoadFromParam"],
+                    "&^object.agent.LoadFromParam",
                 ],
             },
             {
@@ -43,16 +42,13 @@
             {
                 "FunctionCall":[
                     ["&^object.agent.Save", ["Name=agent", "&~cache.In.SaveDir"]],
-                    ["&^object.world.Save", ["Name=world", "&~cache.In.SaveDir"]],
                 ]
             },
             {
                 "RemoveObj":{
                     "MountPath":[
                         "/&^object.agent",
-                        "/&^object.world",
                         "/&^param.agent",
-                        "/&^param.world"
                     ]
                 },
             },
@@ -64,7 +60,7 @@
                 {
                     "FilePath":[
                         "./param/RNNLIF.jsonc", 
-                        "./param/image.jsonc", 
+                        "./param/Dataset.jsonc", 
                         "./param/agent.jsonc"
                     ],
                     "MountPath":[
@@ -83,20 +79,32 @@
         },
         {
             "BuildObjFromParam":{
-                "ParamPath": ["&^param.world", "&^param.agent"],
-                "ModulePath": ["World2D.Arenas2D", "Agents.AgentPoint2D"],
-                "MountPath": ["/&^object.world", "/&^object.agent"],
+                "ParamPath": ["&^param.agent"],
+                "ModulePath": ["Agents.Agent"],
+                "MountPath": ["/&^object.agent"],
             },
         },
         "ParseParamStatic",
         {
             "FunctionCall":[
-                "&^object.world.InitFromParam",
                 "&^object.agent.InitFromParam",
                 ["&^object.agent.SetFullName", "agent"],
-                ["&^object.world.SetFullName", "world"],
-                "&^object.agent.PlotPlaceCellsActivity",
             ],
+        },
+        {
+            "BuildObjFromFile":{
+                "ParamFilePath": "./param/TrainerForEpochBatchTraining.jsonc",
+                "ModulePath": "utils_torch.train.TrainerForEpochBatchTraining",
+                "MountPath": "&^object.trainer",
+            },
+        },
+        {
+            "FunctionCall": [
+                ["&^object.trainer.RegisterExternalMethod", ["SaveAndLoad", "&#utils_torch.ExternalMethods.SaveAndLoad"]], // Set Save and Load Method
+                ["&^object.trainer.RegisterExternalMethod", ["AnalyzeBeforeTrain", "&#utils_torch.ExternalMethods.AnalyzeBeforeTrain"]], // Set AnalyzeAfterBatch Method
+                ["&^object.trainer.RegisterExternalMethod", ["AnalyzeAfterBatch", "&#utils_torch.ExternalMethods.AnalyzeAfterBatch"]], // Set AnalyzeAfterBatch Method
+                "&^object.trainer.InitFromParam",
+            ]
         },
         {
             "DoTasks": "&^param.task.BeforeTrain"
@@ -109,17 +117,16 @@
             "FunctionCall": [
                 "&^object.agent.cache.Modules.model.SetTrainWeight",
                 "&#utils_torch.ExternalMethods.AddObjRefForParseRouters",
-                "&#utils_torch.ExternalMethods.RegisterExternalMethods",
-                "&^object.agent.Modules.Dataset.LoadData",
-                "&^object.agent.Modules.Dataset.ApplyTransformOnData"
-
+                //"&#utils_torch.ExternalMethods.RegisterExternalMethods",
+                "&^object.agent.Modules.Dataset.ApplyTransformOnData",
             ]
         },
     ],
     "Train":{
         "Epoch.Num": 200,
+        "Batch.Size": 64, 
         "BatchParam":{
-            "Images.Num": "$Batch.Size"
+            "Batch.Size": "$Batch.Size"
         },
         "OptimizeParam":{
             "Method": "GradientDescend",
@@ -129,18 +136,14 @@
             "Dampening": 0.0, 
             "Nesterov": false,
         },
+        "NotifyEpochBatchList":[
+            "&^log.DataTrain"
+        ],
         "__Tasks__":[
             {
-                "BuildObjFromFile":{
-                    "ParamFilePath": "./param/TrainerFroEpochBatchTraining.jsonc",
-                    "ClassPath": "utils_torch.train.TrainerFroEpochBatchTraining",
-                    "MountPath": "&^object.trainer",
-                },
-            },
-            {
                 "CallGraph": {
-                    "Router": "&^object.trainer.Main",
-                    "In": ["$Epoch.Num", "$BatchParam", "$OptimizeParam", "$NotifyEpochBatchList"],
+                    "Router": "&^object.trainer.Dynamics.Main",
+                    "In": ["&~Epoch.Num", "&~BatchParam", "&~OptimizeParam", "&~NotifyEpochBatchList"],
                 },
             },
         ]
