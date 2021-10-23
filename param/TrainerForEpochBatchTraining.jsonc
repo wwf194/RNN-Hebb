@@ -10,11 +10,13 @@
             "Type": "CheckPointForEpochBatchTraining",
             "Epoch.Num": "$Epoch.Num",
             "Batch.Num": "$Batch.Num",
+            "Interval.Start": 100,
         },
         "CheckPointAnalyze":{
             "Type": "CheckPointForEpochBatchTraining",
             "Epoch.Num": "$Epoch.Num",
             "Batch.Num": "$Batch.Num",
+            "Interval.Start": 100,
         },
         "AnalyzeAfterBatch":{
             "Type": "External"
@@ -27,8 +29,14 @@
         "Main":{
             "In": ["EpochNum", "BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
             "Routings":[
-                "NotifyEpochBatchList |--> &BeforeTrain", "&ClearEpoch",
-                "EpochNum |--> &SetEpochNum",
+                "EpochNum |--> &SetEpochNum", 
+                "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTrain |--> BatchNum",
+                "BatchNum |--> &SetBatchNum",
+                "NotifyEpochBatchList |--> &BeforeTrain",
+                "EpochIndex=-1 |--> &SetEpochIndex", "BatchIndex=0 |--> &SetBatchIndex",
+                "&GenerateContextInfo |--> ContextInfo",
+                "ContextInfo |--> &SaveAndLoad",
+                "&ClearEpoch",
                 "BatchParam, OptimizeParam |--> &TrainEpoch || Repeat=%EpochNum",
             ]
         },
@@ -41,22 +49,24 @@
         "TrainEpoch":{
             "In": ["BatchParam", "OptimizeParam"],
             "Routings": [
-                "&ClearBatch", "&AddEpoch", "&NotifyEpochIndex",
+                "&ClearBatch", "&NotifyEpochIndex",
                 "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTrain |--> BatchNum",
                 "BatchNum |--> &SetBatchNum",
                 "BatchParam, OptimizeParam |--> &TrainBatch || Repeat=%BatchNum",
+                "&AddEpoch",
             ],
         },
         "TrainBatch":{
             "In": ["BatchParam", "OptimizeParam"],
             "Routings": [
-                "&ReportEpochBatch", "&NotifyBatchIndex", "&AddBatch",
+                "&ReportEpochBatch", "&NotifyBatchIndex", 
                 "BatchParam, OptimizeParam |--> &Train",
                 "&CheckPointSave.AddBatchAndReturnIsCheckPoint |--> IsSave",
                 "&CheckPointAnalyze.AddBatchAndReturnIsCheckPoint |--> IsAnalyze",
                 "&GenerateContextInfo |--> ContextInfo",
                 "ContextInfo |--> &SaveAndLoad || Condition=%IsSave",
                 "ContextInfo |--> &AnalyzeAfterBatch || Condition=%IsAnalyze",
+                "&AddBatch",
             ],
         },
         "Train":{
@@ -69,17 +79,18 @@
         "TestEpoch":{
             "In": ["BatchParam", "OptimizeParam"],
             "Routings": [
-                "&ClearBatch", "&AddEpoch", "&NotifyEpochIndex",
+                "&ClearBatch", "&NotifyEpochIndex",
                 "BatchParam |--> &^object.agent.Dynamics.InitBeforeEpochTest |--> BatchNum",
                 "BatchParam, OptimizeParam |--> &TestBatch || Repeat=%BatchNum",
+                "&AddEpoch",
             ],
         },
         "TestBatch":{
             "In": ["BatchParam", "OptimizeParam"],
             "Routings": [
-                "&AddBatch",
                 "&NotifyBatchIndex",
                 "BatchParam, OptimizeParam |--> &Test",
+                "&AddBatch",
             ],
         },
         "Test":{

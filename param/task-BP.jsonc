@@ -79,16 +79,20 @@
         },
         {
             "BuildObjFromParam":{
-                "ParamPath": ["&^param.agent"],
-                "ModulePath": ["Agents.Agent"],
-                "MountPath": ["/&^object.agent"],
+                "ParamPath": ["&^param.agent", "&^param.image"],
+                "ModulePath": ["Agents.Agent", "utils_torch.Datasets.CIFAR10.DataLoaderForEpochBatchTraining"],
+                "MountPath": ["/&^object.agent", "/&^object.image"],
             },
         },
         "ParseParamStatic",
         {
             "FunctionCall":[
                 "&^object.agent.InitFromParam",
+                "&^object.image.InitFromParam",
                 ["&^object.agent.SetFullName", "agent"],
+                ["&^object.image.SetFullName", "image"],
+                "&^object.image.LoadData",
+                "&^object.image.ApplyTransformOnData",
             ],
         },
         {
@@ -118,7 +122,6 @@
                 "&^object.agent.cache.Modules.model.SetTrainWeight",
                 "&#utils_torch.ExternalMethods.AddObjRefForParseRouters",
                 //"&#utils_torch.ExternalMethods.RegisterExternalMethods",
-                "&^object.agent.Modules.Dataset.ApplyTransformOnData",
             ]
         },
     ],

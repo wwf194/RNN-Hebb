@@ -237,7 +237,7 @@
                 "&*GetTrainWeight |--> trainWeight",
                 "trainWeight, logger=DataTrain |--> &LogWeightStat",
                 "trainWeight, trainParam |--> &GradientDescend |--> MinusGrad",
-                "Name=MinusGrad, Data=MinusGrad, Type=Grad |--> &^log.DataTrain.AddLogCache",
+                "Name=MinusGrad, Data=%MinusGrad, Type=Grad |--> &^log.DataTrain.AddLogCache",
 
                 "output,       Name='output',       logger=DataTrain |--> &LogStat",
                 "outputTarget, Name='outputTarget', logger=DataTrain |--> &LogStat",
@@ -263,7 +263,7 @@
                 "&*GetTrainWeight |--> trainWeight",
                 "trainWeight, logger=DataTest |--> &LogWeightStat",
                 "trainWeight, trainParam, Update=False |--> &GradientDescend |--> MinusGrad",
-                "Name=MinusGrad, data=MinusGrad, Type=Grad |--> &^log.DataTrain.AddLogCache", 
+                "Name=MinusGrad, data=%MinusGrad, Type=Grad |--> &^log.DataTest.AddLogCache", 
 
                 "output,       Name='output',       logger=DataTest |--> &LogStat",
                 "outputTarget, Name='outputTarget', logger=DataTest |--> &LogStat",

@@ -1,18 +1,18 @@
 {
     "Task": "$^param.task.Task",
     "HiddenNeurons.Num": 500,
-    "HiddenNueorns.IsExciInhi": true,
+    "HiddenNueorns.IsExciInhi": false,
     "InitTasks":[
         {
             "FunctionCall": [
                 "&*SetModelInputOutput",
-                "&*Modules.Dataset.LoadData",
+                //"&*Modules.Dataset.LoadData",
                 "&*ParseParam",
             ]
         },
     ],
     "Modules":{
-        "Dataset":"$^param.image",
+        //"Dataset":"$^param.image",
         "model":"$^param.model",
         "model.Input.Type": "dLDirection", //dXY
         "model.InputInit.Type": "__ToBeSet__",
@@ -24,16 +24,16 @@
             "In": ["BatchParam", "OptimizeParam"],
             "Out": ["BatchNum"],
             "Routings":[
-                "&Modules.Dataset.ClearBatches",
-                "BatchParam, Type=Train |--> &Modules.Dataset.PrepareBatches",
-                "&Modules.Dataset.GetBatchNum |--> BatchNum",
+                "&^object.image.ClearBatches",
+                "BatchParam, Type=Train |--> &^object.image.PrepareBatches",
+                "&^object.image.GetBatchNum |--> BatchNum",
             ]
         },
         "Train":{
             "In":["BatchParam", "TrainParam"],
             "Out":[],
             "Routings": [
-                "&Modules.Dataset.GetBatch |--> DataBatch",
+                "&^object.image.GetBatch |--> DataBatch",
                 "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
                 "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
                 "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Train",
@@ -43,16 +43,16 @@
             "In": ["BatchParam", "TrainParam"],
             "Out": ["BatchNum"],
             "Routings":[
-                "&Modules.Dataset.ClearBatches",
-                "BatchParam, Type=Test |--> &Modules.Dataset.PrepareBatches",
-                "&Modules.Dataset.GetBatchNum |--> BatchNum",
+                "&^object.image.ClearBatches",
+                "BatchParam, Type=Test |--> &^object.image.PrepareBatches",
+                "&^object.image.GetBatchNum |--> BatchNum",
             ]
         },
         "Test":{
             "In":["BatchParam", "TrainParam"],
             "Out":[],
             "Routings": [
-                "&Modules.Dataset.GetBatch |--> DataBatch",
+                "&^object.image.GetBatch |--> DataBatch",
                 "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
                 "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
                 "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Test",

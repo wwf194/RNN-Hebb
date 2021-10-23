@@ -125,26 +125,35 @@ def AnalyzeBeforeTrain(ContextInfo):
     AnalyzeTest(ContextInfo)
 
 def AnalyzeAfterBatch(ContextInfo):
-    AnalyzeTrain(ContextInfo)
-    AnalyzeTest(ContextInfo)
+    AnalyzeTrain(utils_torch.CopyDict(ContextInfo))
+    AnalyzeTest(utils_torch.CopyDict(ContextInfo))
 
 def AnalyzeTrain(ContextInfo):
     EpochIndex = ContextInfo["EpochIndex"]
     BatchIndex = ContextInfo["BatchIndex"]
     logger = utils_torch.GetLogger("DataTrain")
+
+    utils_torch.AddLog("Plotting Loss Curve...")
     utils_torch.analysis.AnalyzeLossEpochBatch(
         Logs=logger.GetLogOfType("Loss"), **ContextInfo
     )
+
+    utils_torch.AddLog("Plotting Neural Activity...")
     utils_torch.analysis.AnalyzeTimeVaryingActivitiesEpochBatch(
         Logs=logger.GetLogOfType("TimeVaryingActivity"),
     )
+
+    utils_torch.AddLog("Plotting Weight...")
     utils_torch.analysis.AnalyzeWeightsEpochBatch(
         Logs=logger.GetLogOfType("Weight"),
     )
+
+    utils_torch.AddLog("Plotting Weight Statistics...")
     utils_torch.analysis.AnalyzeWeightStatAlongTrainingEpochBatch(
         Logs=logger.GetLogOfType("Weight-Stat"), **ContextInfo
     )
 
+    utils_torch.AddLog("Analyzing ConnectionStrength - ResponseSimilarity Relationship...")
     if logger.GetLogByName("MinusGrad") is not None:
         utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
             ResponseA=logger.GetLogByName("agent.model.FiringRates")["Value"],
@@ -162,8 +171,8 @@ def AnalyzeTest(ContextInfo):
     BatchIndex = ContextInfo["BatchIndex"]
     Trainer = ContextInfo["Trainer"]
     logger = utils_torch.GetLogger("DataTest") # In test router, data are logged onto GlobalParam.log.DataTrain
-    logger.NotifyEpochIndex(EpochIndex)
-    logger.NotifyBatchIndex(BatchIndex)
+    logger.SetEpochIndex(EpochIndex)
+    logger.SetBatchIndex(BatchIndex)
     RouterTest = Trainer.Dynamics.TestEpoch
     return
 
