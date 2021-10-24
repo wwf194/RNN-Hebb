@@ -1,0 +1,53 @@
+{
+   "Main":[
+        { // Load task json file.
+            "LoadParamFile":[
+                {
+                    "FilePath":"./param/task-BP.jsonc",
+                    "MountPath":"&^param.task"
+                }
+            ],
+        },
+        { // Build data logger.
+            "BuildObj":{
+                "ModulePath": [
+                    "utils_torch.log.LoggerForEpochBatchTrain",
+                    "utils_torch.log.LoggerForEpochBatchTrain"
+                ],
+                "MountPath":[
+                    "&^log.DataTrain",
+                    "&^log.DataTest",
+                ]
+            }
+        },
+        { // Do tasks in task json file.
+            "DoTasks": "&^param.task.Main"
+        }
+    ],
+    "AddAnalysis":[
+        { // Load task json file.
+            "LoadParamFile":[
+                {
+                    "FilePath":"./param/task-BP.jsonc",
+                    "MountPath":"&^param.task"
+                }
+            ],
+        },
+        { // Build data logger.
+            "BuildObj":{
+                "ModulePath": [
+                    "utils_torch.log.LoggerForEpochBatchTrain",
+                    "utils_torch.log.LoggerForEpochBatchTrain"
+                ],
+                "MountPath":[
+                    "&^log.DataTrain",
+                    "&^log.DataTest",
+                ]
+            }
+        },
+        {
+            "DoTasks": "&^param.task.AddAnalysis"
+        }
+
+    ]
+}

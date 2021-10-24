@@ -77,10 +77,11 @@
             ],
         },
         "TestEpoch":{
-            "In": ["BatchParam", "OptimizeParam"],
+            "In": ["BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
             "Routings": [
-                "&ClearBatch", "&NotifyEpochIndex",
-                "BatchParam |--> &^object.agent.Dynamics.InitBeforeEpochTest |--> BatchNum",
+                "NotifyEpochBatchList |--> &Register2NotifyEpochBatchList",
+                "&ClearEpoch", "&ClearBatch", "&NotifyEpochIndex",
+                "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTest |--> BatchNum",
                 "BatchParam, OptimizeParam |--> &TestBatch || Repeat=%BatchNum",
                 "&AddEpoch",
             ],

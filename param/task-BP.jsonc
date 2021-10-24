@@ -96,6 +96,42 @@
             ],
         },
         {
+            "DoTasks": "&^param.task.BuildTrainer"
+        },
+        {
+            "DoTasks": "&^param.task.BeforeTrain"
+        }
+    ],
+    "BuildDataset":[
+        {
+            "LoadParamFile":[
+                {
+                    "FilePath": "./param/Dataset.jsonc", 
+                    "MountPath":"/&^param.image",
+
+                }
+            ],
+        },
+        "ParseParamStatic",
+        {
+            "BuildObjFromParam":{
+                "ParamPath": ["&^param.image"],
+                "ModulePath": ["utils_torch.Datasets.CIFAR10.DataLoaderForEpochBatchTraining"],
+                "MountPath": ["/&^object.image"],
+            },
+        },
+        "ParseParamStatic",
+        {
+            "FunctionCall":[
+                "&^object.image.InitFromParam",
+                ["&^object.image.SetFullName", "image"],
+                "&^object.image.LoadData",
+                "&^object.image.ApplyTransformOnData",
+            ],
+        },
+    ],
+    "BuildTrainer":[
+        {
             "BuildObjFromFile":{
                 "ParamFilePath": "./param/TrainerForEpochBatchTraining.jsonc",
                 "ModulePath": "utils_torch.train.TrainerForEpochBatchTraining",
@@ -110,9 +146,6 @@
                 "&^object.trainer.InitFromParam",
             ]
         },
-        {
-            "DoTasks": "&^param.task.BeforeTrain"
-        }
     ],
     "BeforeTrain":[
         "ParseParamStatic",
@@ -150,5 +183,8 @@
                 },
             },
         ]
+    },
+    "AddAnalysis":{
+        "FunctionCall": "&#utils_torch.ExternalMethods.AddAnalysis",
     },
 }

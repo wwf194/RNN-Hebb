@@ -6,11 +6,11 @@ import traceback
 parser = argparse.ArgumentParser()
 parser.add_argument("task", nargs="?", default="DoTasksFromFile")
 parser.add_argument("-IsDebug", default=True)
-parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default=None)
-# parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default="./log/DoTasksFromFile-2021-10-16-16:04:16/")
+# parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default=None)
+parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default="./log/DoTasksFromFile-2021-10-24-03:40:38/")
 parser.add_argument("-tf", "--TaskFile", dest="TaskFile", default="./task.jsonc")
-parser.add_argument("-tn", "--TaskName", dest="TaskName", default="Main")
-# parser.add_argument("-tn", "--TaskName", dest="TaskName", default="AddAnalysis")
+# parser.add_argument("-tn", "--TaskName", dest="TaskName", default="Main")
+parser.add_argument("-tn", "--TaskName", dest="TaskName", default="AddAnalysis")
 Args = parser.parse_args()
 
 TaskFilePath = Args.TaskFile
@@ -102,6 +102,7 @@ def RegisterExternalMethods():
     utils_torch.RegisterExternalMethods("AnalyzeAfterBatch", AnalyzeAfterBatch)
     utils_torch.RegisterExternalMethods("AnalyzeBeforeTrain", AnalyzeBeforeTrain)
     utils_torch.RegisterExternalMethods("AddObjRefForParseRouters", AddObjRefForParseRouters)
+    utils_torch.RegisterExternalMethods("AddAnalysis", AddAnalysis)
 #utils_torch.RegisterExternalMethods("RegisterExternalMethods", RegisterExternalMethods)
 
 # External Methods that will be registered into Core Objects.
@@ -175,6 +176,50 @@ def AnalyzeTest(ContextInfo):
     logger.SetBatchIndex(BatchIndex)
     RouterTest = Trainer.Dynamics.TestEpoch
     return
+
+def AddAnalysis(*Args, **kw):
+    # Do supplementary analysis for all saved models under main save directory.
+    kw.setdefault("ObjRoot", utils_torch.GetGlobalParam())
+    SaveDirs = utils_torch.GetAllSubSaveDirsEpochBatch("SavedModel")
+    for SaveDir in SaveDirs:
+        EpochIndex, BatchIndex = utils_torch.train.ParseEpochBatchFromStr(SaveDir)
+        utils_torch.AddLog("Testing Model at Epoch%d-Batch%d"%(EpochIndex, BatchIndex))
+        logger = utils_torch.GetLogger("DataTest")
+        logger.SetEpochIndex(EpochIndex)
+        logger.SetBatchIndex(BatchIndex)
+
+        utils_torch.DoTasks(
+            "&^param.task.BuildDataset", **kw
+        )
+        utils_torch.DoTasks(
+            "&^param.task.Load",
+            In={"SaveDir": SaveDir}, 
+            **kw
+        )
+        utils_torch.DoTasks(
+            "&^param.task.BuildTrainer", **kw
+        )
+        GlobalParam = utils_torch.GetGlobalParam()
+        Trainer = GlobalParam.object.trainer
+
+        In = utils_torch.parse.ParsePyObjDynamic(
+            utils_torch.PyObj([
+                "&^param.task.Train.BatchParam",
+                "&^param.task.Train.OptimizeParam",
+                "&^param.task.Train.NotifyEpochBatchList"
+            ]),
+            ObjRoot=GlobalParam
+        )
+        utils_torch.CallGraph(Trainer.Dynamics.TestEpoch, In=In)
+
+        utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
+            ResponseA=logger.GetLogByName("agent.model.FiringRates")["Value"],
+            ResponseB=logger.GetLogByName("agent.model.FiringRates")["Value"],
+            WeightUpdate=logger.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
+            Weight = logger.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
+            SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis/",
+            SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
+        )
 
 RegisterExternalMethods()
 
