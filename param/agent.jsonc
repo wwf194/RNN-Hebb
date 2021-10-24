@@ -1,7 +1,7 @@
 {
     "Task": "$^param.task.Task",
     "HiddenNeurons.Num": 500,
-    "HiddenNueorns.IsExciInhi": false,
+    "HiddenNueorns.IsExciInhi": true,
     "InitTasks":[
         {
             "FunctionCall": [

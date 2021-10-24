@@ -249,8 +249,9 @@
             ],
         },
         "OptimizeTest":{
-            "In": ["output", "outputTarget", "activity", "trainParam"],
+            "In": ["outputSeries", "outputTarget", "activity", "trainParam"],
             "Routings":[
+                "outputSeries |--> &GetLastOutput |--> output",
                 "output, outputTarget |--> &PredictionLoss |--> mainLoss",
                 "activity, mainLoss |--> &CalculateActivityConstrainLoss |--> activityConstrainLoss",
                 "mainLoss |--> &CalculateWeightConstrainLoss |--> weightConstrainLoss",
@@ -263,7 +264,7 @@
                 "&*GetTrainWeight |--> trainWeight",
                 "trainWeight, logger=DataTest |--> &LogWeightStat",
                 "trainWeight, trainParam, Update=False |--> &GradientDescend |--> MinusGrad",
-                "Name=MinusGrad, data=%MinusGrad, Type=Grad |--> &^log.DataTest.AddLogCache", 
+                "Name=MinusGrad, Data=%MinusGrad, Type=Grad |--> &^log.DataTest.AddLogCache", 
 
                 "output,       Name='output',       logger=DataTest |--> &LogStat",
                 "outputTarget, Name='outputTarget', logger=DataTest |--> &LogStat",

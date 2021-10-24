@@ -184,7 +184,12 @@
             },
         ]
     },
-    "AddAnalysis":{
-        "FunctionCall": "&#utils_torch.ExternalMethods.AddAnalysis",
-    },
+    "AddAnalysis":[
+        {
+            "FunctionCall": [
+                ["&#utils_torch.ParseTaskObj", "&^param.task.Train"],
+                "&#utils_torch.ExternalMethods.AddAnalysis",
+            ]
+        }
+    ],
 }

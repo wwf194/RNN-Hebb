@@ -6,11 +6,11 @@ import traceback
 parser = argparse.ArgumentParser()
 parser.add_argument("task", nargs="?", default="DoTasksFromFile")
 parser.add_argument("-IsDebug", default=True)
-# parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default=None)
-parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default="./log/DoTasksFromFile-2021-10-24-03:40:38/")
+parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default=None)
+# parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default="./log/DoTasksFromFile-2021-10-24-03:40:38/")
+parser.add_argument("-tn", "--TaskName", dest="TaskName", default="Main")
+# parser.add_argument("-tn", "--TaskName", dest="TaskName", default="AddAnalysis")
 parser.add_argument("-tf", "--TaskFile", dest="TaskFile", default="./task.jsonc")
-# parser.add_argument("-tn", "--TaskName", dest="TaskName", default="Main")
-parser.add_argument("-tn", "--TaskName", dest="TaskName", default="AddAnalysis")
 Args = parser.parse_args()
 
 TaskFilePath = Args.TaskFile
@@ -64,6 +64,8 @@ def InitUtils():
     Args.task = ParseMainTask(Args.task)
     utils_torch.SetGlobalParam(GlobalParam=utils.GlobalParam)
     if Args.SaveDir is not None:
+        if not Args.SaveDir.endswith("/"):
+            Args.SaveDir += "/"
         utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, SaveDir=Args.SaveDir)
     else:  # Create
         utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, Name=Args.task)
@@ -180,6 +182,11 @@ def AnalyzeTest(ContextInfo):
 def AddAnalysis(*Args, **kw):
     # Do supplementary analysis for all saved models under main save directory.
     kw.setdefault("ObjRoot", utils_torch.GetGlobalParam())
+    
+    utils_torch.DoTasks( # Dataset can be reused.
+        "&^param.task.BuildDataset", **kw
+    )
+
     SaveDirs = utils_torch.GetAllSubSaveDirsEpochBatch("SavedModel")
     for SaveDir in SaveDirs:
         EpochIndex, BatchIndex = utils_torch.train.ParseEpochBatchFromStr(SaveDir)
@@ -188,9 +195,7 @@ def AddAnalysis(*Args, **kw):
         logger.SetEpochIndex(EpochIndex)
         logger.SetBatchIndex(BatchIndex)
 
-        utils_torch.DoTasks(
-            "&^param.task.BuildDataset", **kw
-        )
+
         utils_torch.DoTasks(
             "&^param.task.Load",
             In={"SaveDir": SaveDir}, 
