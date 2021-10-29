@@ -1,12 +1,11 @@
 {
     "Task": "$^param.task.Task",
     "HiddenNeurons.Num": 500,
-    "HiddenNueorns.IsExciInhi": true,
+    "HiddenNeurons.IsExciInhi": true,
     "InitTasks":[
         {
             "FunctionCall": [
                 "&*SetModelInputOutput",
-                //"&*Modules.Dataset.LoadData",
                 "&*ParseParam",
             ]
         },

@@ -1,6 +1,6 @@
 {
-   "Main":[
-        { // Load task json file.
+    "Main":[
+        { // Load json file that contain tasks to be done.
             "LoadParamFile":[
                 {
                     "FilePath":"./param/task-BP.jsonc",
@@ -14,10 +14,7 @@
                     "utils_torch.log.LoggerForEpochBatchTrain",
                     "utils_torch.log.LoggerForEpochBatchTrain"
                 ],
-                "MountPath":[
-                    "&^log.DataTrain",
-                    "&^log.DataTest",
-                ]
+                "MountPath":["&^log.DataTrain", "&^log.DataTest"]
             }
         },
         { // Do tasks in task json file.

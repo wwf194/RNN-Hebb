@@ -3,39 +3,31 @@ import sys
 import argparse
 import traceback
 
-parser = argparse.ArgumentParser()
-parser.add_argument("task", nargs="?", default="DoTasksFromFile")
-parser.add_argument("-IsDebug", default=True)
-parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default=None)
-# parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default="./log/DoTasksFromFile-2021-10-24-03:40:38/")
-parser.add_argument("-tn", "--TaskName", dest="TaskName", default="Main")
-# parser.add_argument("-tn", "--TaskName", dest="TaskName", default="AddAnalysis")
-parser.add_argument("-tf", "--TaskFile", dest="TaskFile", default="./task.jsonc")
-Args = parser.parse_args()
+def ParseCmdArgs():
+    parser = argparse.ArgumentParser()
+    # parser.add_argument("task", nargs="?", default="DoTasksFromFile")
+    parser.add_argument("-t", "--task", dest="task", nargs="?", default="CopyProject2DirAndRun")
+    parser.add_argument("-t2", "--task2", dest="task2", default="DoTasksFromFile")
+    parser.add_argument("-id", "--IsDebug", dest="IsDebug", default=True)
 
-TaskFilePath = Args.TaskFile
+    # If Args.task in ['CopyProject2DirAndRun'], this argument will be used to designate file to be run.
+    parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default=None)
+    # parser.add_argument("-sd", "--SaveDir", dest="SaveDir", default="./log/DoTasksFromFile-2021-10-16-16:04:16/")
+    parser.add_argument("-tf", "--TaskFile", dest="TaskFile", default="./task.jsonc")
+    parser.add_argument("-tn", "--TaskName", dest="TaskName", default="Main")
+    # parser.add_argument("-tn", "--TaskName", dest="TaskName", default="AddAnalysis")
+
+    # If Args.task in ['CopyProject2DirAndRun'], this argument will be used to designate file to be run.
+    parser.add_argument("-ms", "--MainScript", dest="MainScript", default="main.py")
+    CmdArgs = parser.parse_args()
+    return CmdArgs
+CmdArgs = ParseCmdArgs()
+
 def main():
-    if Args.task in ["CleanLog", "CleanLog", "cleanlog"]:
-        CleanLog()
-    elif Args.task in ["CleanFigure"]:
-        CleanFigures()
-    elif Args.task in ["DoTasksFromFile"]:
-        TaskObj = utils_torch.LoadTaskFile(TaskFilePath)
-        Tasks = getattr(TaskObj, Args.TaskName)
-        if not Args.IsDebug:
-            try: # catch all unhandled exceptions
-                utils_torch.DoTasks(Tasks, ObjRoot=utils_torch.GetGlobalParam())
-            except Exception:
-                utils_torch.AddError(traceback.format_exc())
-                raise Exception()
-        else:
-            utils_torch.DoTasks(Tasks, ObjRoot=utils_torch.GetGlobalParam())
-    elif Args.task in ["TotalLines"]:
-        utils_torch.CalculateGitProjectTotalLines()
-    elif Args.task in ["QuickScript"]:
-        QuickScript(Args)
-    else:
-        raise Exception("Inavlid Task: %s"%Args.task)
+    utils_torch.Main(
+        CmdArgs=CmdArgs,
+        QuickScript=QuickScript
+    )
 
 def ScanConfigFile(FilePath="./config.jsonc"):
     import json5
@@ -58,17 +50,18 @@ def ParseMainTask(task):
         pass
     return task
 
+
 def InitUtils():
     import utils_torch
     import utils
-    Args.task = ParseMainTask(Args.task)
+    CmdArgs.task = ParseMainTask(CmdArgs.task)
     utils_torch.SetGlobalParam(GlobalParam=utils.GlobalParam)
-    if Args.SaveDir is not None:
-        if not Args.SaveDir.endswith("/"):
-            Args.SaveDir += "/"
-        utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, SaveDir=Args.SaveDir)
+    if CmdArgs.SaveDir is not None:
+        if not CmdArgs.SaveDir.endswith("/"):
+            CmdArgs.SaveDir += "/"
+        CmdArgs.SaveDir = utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, SaveDir=CmdArgs.SaveDir)
     else:  # Create
-        utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, Name=Args.task)
+        CmdArgs.SaveDir = utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, Name=CmdArgs.task)
     utils_torch.SetLoggerGlobal(GlobalParam=utils.GlobalParam)
 InitUtils()
 
@@ -76,12 +69,6 @@ import utils
 import utils_torch
 from utils_torch.attrs import *
 utils_torch.SetGlobalParam(utils.GlobalParam)
-
-def CleanLog():
-    utils_torch.files.RemoveAllFilesAndDirs("./log/")
-
-def CleanFigures():
-    utils_torch.files.RemoveMatchedFiles("./", r".*\.png")
 
 def QuickScript(Args):
     # Write temporary code here, and run by "python main.py quick"
@@ -91,7 +78,7 @@ def QuickScript(Args):
     )
     Data = utils_torch.json.DataFile2JsonObj("/data3/wangweifan/Datasets/CIFAR10/CIFAR10-Data")
     return
-
+# CmdArgs.QuickScript = QuickScript
 
 def AddObjRefForParseRouters():
     ObjRefLocal = utils_torch.PyObj()
@@ -166,7 +153,6 @@ def AnalyzeTrain(ContextInfo):
             SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis/",
             SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
         )
-
     return
 
 def AnalyzeTest(ContextInfo):
@@ -217,15 +203,23 @@ def AddAnalysis(*Args, **kw):
         )
         utils_torch.CallGraph(Trainer.Dynamics.TestEpoch, In=In)
 
+        # utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
+        #     ResponseA=logger.GetLogByName("agent.model.FiringRates")["Value"],
+        #     ResponseB=logger.GetLogByName("agent.model.Outputs")["Value"],
+        #     WeightUpdate=logger.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2Output.Weight"],
+        #     Weight = logger.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2Output.Weight"],
+        #     SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis/" + "Recurrent.FiringRate2Output/",
+        #     SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2Output.Weight"%(EpochIndex, BatchIndex),
+        # )
+
         utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
             ResponseA=logger.GetLogByName("agent.model.FiringRates")["Value"],
             ResponseB=logger.GetLogByName("agent.model.FiringRates")["Value"],
-            WeightUpdate=logger.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
-            Weight = logger.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
-            SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis/",
-            SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
+            WeightUpdate=logger.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2Output.Weight"],
+            Weight = logger.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2Output.Weight"],
+            SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis/" + "Recurrent.FiringRate2Output/",
+            SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2Output.Weight"%(EpochIndex, BatchIndex),
         )
-
 RegisterExternalMethods()
 
 if __name__=="__main__":

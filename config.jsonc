@@ -10,5 +10,14 @@
         "CIFAR10":{
             "Dir": "/data3/wangweifan/Datasets/CIFAR10/"
         },
-    }
+    },
+    "Project.Files":[
+        "param/",
+        "utils/",
+        "Agents/Agent.py",
+        "main.py",
+        "task.jsonc",
+        "config.jsonc",
+        "cache.jsonc",
+    ]
 }

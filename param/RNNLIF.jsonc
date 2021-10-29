@@ -301,7 +301,7 @@
                 "input, iterationTime |--> &Run |--> outputSeries, hiddenStateSeries, cellStateSeries, firingRateSeries",
                 "hiddenStateSeries, cellStateSeries, firingRateSeries |--> &Merge |--> activity",
                 "outputSeries, outputTarget, activity, trainParam |--> &OptimizeTest",
-
+                    
                 "hiddenStateSeries, Name=HiddenStates, logger=DataTest |--> &LogTimeVaryingActivity",
                 "cellStateSeries,   Name=CellStates, logger=DataTest   |--> &LogTimeVaryingActivity",
                 "firingRateSeries,  Name=FiringRates, logger=DataTest  |--> &LogTimeVaryingActivity",
