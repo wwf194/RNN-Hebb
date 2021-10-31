@@ -30,21 +30,14 @@
                 }
             ],
         },
-        { // Build data logger.
-            "BuildObj":{
-                "ModulePath": [
-                    "utils_torch.log.LoggerForEpochBatchTrain",
-                    "utils_torch.log.LoggerForEpochBatchTrain"
-                ],
-                "MountPath":[
-                    "&^log.DataTrain",
-                    "&^log.DataTest",
-                ]
-            }
+        {
+            "DoTasks": "&^param.task.BuildLogger"
         },
         {
-            "DoTasks": "&^param.task.AddAnalysis"
+            "FunctionCall": [
+                ["&#utils_torch.ParseTaskObj", "&^param.task.Train"],
+                "&#utils_torch.ExternalMethods.AddAnalysis",
+            ]
         }
-
     ]
 }

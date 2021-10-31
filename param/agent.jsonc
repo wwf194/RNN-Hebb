@@ -56,6 +56,16 @@
                 "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
                 "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Test",
             ],
+        },
+        "TestRandom":{
+            "In":["BatchParam", "TrainParam"],
+            "Out":[],
+            "Routings": [
+                "&^object.image.GetRandomBatch |--> DataBatch",
+                "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
+                "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
+                "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Test",
+            ],
         }
     }
 }

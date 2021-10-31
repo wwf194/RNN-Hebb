@@ -133,7 +133,7 @@
     "BuildTrainer":[
         {
             "BuildObjFromFile":{
-                "ParamFilePath": "./param/TrainerForEpochBatchTraining.jsonc",
+                "ParamFilePath": "./param/trainer.jsonc",
                 "ModulePath": "utils_torch.train.TrainerForEpochBatchTraining",
                 "MountPath": "&^object.trainer",
             },
@@ -184,12 +184,19 @@
             },
         ]
     },
-    "AddAnalysis":[
-        {
-            "FunctionCall": [
-                ["&#utils_torch.ParseTaskObj", "&^param.task.Train"],
-                "&#utils_torch.ExternalMethods.AddAnalysis",
-            ]
-        }
-    ],
+
+    "BuildLogger":[
+        { // Build data logger.
+            "BuildObj":{
+                "ModulePath": [
+                    "utils_torch.log.LoggerForEpochBatchTrain",
+                    "utils_torch.log.LoggerForEpochBatchTrain"
+                ],
+                "MountPath":[
+                    "&^log.DataTrain",
+                    "&^log.DataTest",
+                ]
+            }
+        },
+    ]
 }
