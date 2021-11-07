@@ -11,12 +11,14 @@
             "Epoch.Num": "$Epoch.Num",
             "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
+            "Method": "&#utils_torch.ExternalMethods.SaveAndLoad"
         },
         "CheckPointAnalyze":{
             "Type": "CheckPointForEpochBatchTraining",
             "Epoch.Num": "$Epoch.Num",
             "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
+            "Method": "&#utils_torch.ExternalMethods.AnalyzeAfterBatch"
         },
         "AnalyzeAfterBatch":{
             "Type": "External"
@@ -26,80 +28,82 @@
         }
     },
     "Dynamics":{
-        "Main":{
-            "In": ["EpochNum", "BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
-            "Routings":[
-                "EpochNum |--> &SetEpochNum", 
-                "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTrain |--> BatchNum",
-                "BatchNum |--> &SetBatchNum",
-                "NotifyEpochBatchList |--> &BeforeTrain",
-                "EpochIndex=-1 |--> &SetEpochIndex", "BatchIndex=0 |--> &SetBatchIndex",
-                "&GenerateContextInfo |--> ContextInfo",
-                "ContextInfo |--> &SaveAndLoad",
-                "&ClearEpoch",
-                "BatchParam, OptimizeParam |--> &TrainEpoch || Repeat=%EpochNum",
-            ]
-        },
-        "BeforeTrain":{
-            "In": ["NotifyEpochBatchList"],
-            "Routings":[
-                "NotifyEpochBatchList |--> &Register2NotifyEpochBatchList",
-            ],
-        },
-        "TrainEpoch":{
-            "In": ["BatchParam", "OptimizeParam"],
-            "Routings": [
-                "&ClearBatch", "&NotifyEpochIndex",
-                "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTrain |--> BatchNum",
-                "BatchNum |--> &SetBatchNum",
-                "BatchParam, OptimizeParam |--> &TrainBatch || Repeat=%BatchNum",
-                "&AddEpoch",
-            ],
-        },
-        "TrainBatch":{
-            "In": ["BatchParam", "OptimizeParam"],
-            "Routings": [
-                "&ReportEpochBatch", "&NotifyBatchIndex", 
-                "BatchParam, OptimizeParam |--> &Train",
-                "&CheckPointSave.AddBatchAndReturnIsCheckPoint |--> IsSave",
-                "&CheckPointAnalyze.AddBatchAndReturnIsCheckPoint |--> IsAnalyze",
-                "&GenerateContextInfo |--> ContextInfo",
-                "ContextInfo |--> &SaveAndLoad || Condition=%IsSave",
-                "ContextInfo |--> &AnalyzeAfterBatch || Condition=%IsAnalyze",
-                "&AddBatch",
-            ],
-        },
-        "Train":{
-            "In":["BatchParam", "OptimizeParam"], // Name of input args.
-            "Routings": [
-                "OptimizeParam |--> &#utils_torch.train.ParseOptimizeParamEpochBatch",
-                "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.Train"
-            ],
-        },
-        "TestEpoch":{
-            "In": ["BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
-            "Routings": [
-                "NotifyEpochBatchList |--> &Register2NotifyEpochBatchList",
-                "&ClearEpoch", "&ClearBatch", "&NotifyEpochIndex",
-                "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTest |--> BatchNum",
-                "BatchParam, OptimizeParam |--> &TestBatch || Repeat=%BatchNum",
-                "&AddEpoch",
-            ],
-        },
-        "TestBatch":{
-            "In": ["BatchParam", "OptimizeParam"],
-            "Routings": [
-                "&NotifyBatchIndex",
-                "BatchParam, OptimizeParam |--> &Test",
-                "&AddBatch",
-            ],
-        },
-        "Test":{
-            "In":["BatchParam", "OptimizeParam"], // Name of input args.
-            "Routings": [
-                "OptimizeParam |--> &#utils_torch.train.ParseOptimizeParamEpochBatch",
-                "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.Test"
-            ],
-        },
+        "Train": "ClassMethod",
+        // "Main":{
+        //     "In": ["EpochNum", "BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
+        //     "Routings":[
+        //         "EpochNum |--> &SetEpochNum", 
+        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTrain |--> BatchNum",
+        //         "BatchNum |--> &SetBatchNum",
+        //         "NotifyEpochBatchList |--> &BeforeTrain",
+        //         "EpochIndex=-1 |--> &SetEpochIndex", "BatchIndex=0 |--> &SetBatchIndex",
+        //         "&GenerateContextInfo |--> ContextInfo",
+        //         "ContextInfo |--> &SaveAndLoad",
+        //         "&ClearEpoch",
+        //         "BatchParam, OptimizeParam |--> &TrainEpoch || Repeat=%EpochNum",
+        //     ]
+        // },
+        // "BeforeTrain":{
+        //     "In": ["NotifyEpochBatchList"],
+        //     "Routings":[
+        //         "NotifyEpochBatchList |--> &Register2NotifyEpochBatchList",
+        //     ],
+        // },
+        // "TrainEpoch":{
+        //     "In": ["BatchParam", "OptimizeParam"],
+        //     "Routings": [
+        //         "&ClearBatch", "&NotifyEpochIndex",
+        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTrain |--> BatchNum",
+        //         "BatchNum |--> &SetBatchNum",
+        //         "BatchParam, OptimizeParam |--> &TrainBatch || Repeat=%BatchNum",
+        //         "&AddEpoch",
+        //     ],
+        // },
+        // "TrainBatch":{
+        //     "In": ["BatchParam", "OptimizeParam"],
+        //     "Routings": [
+        //         "&ReportEpochBatch", "&NotifyBatchIndex",
+        //         "&^object.agent.ReportSelf", 
+        //         "BatchParam, OptimizeParam |--> &Train",
+        //         "&CheckPointSave.AddBatchAndReturnIsCheckPoint |--> IsSave",
+        //         "&CheckPointAnalyze.AddBatchAndReturnIsCheckPoint |--> IsAnalyze",
+        //         "&GenerateContextInfo |--> ContextInfo",
+        //         "ContextInfo |--> &SaveAndLoad || Condition=%IsSave",
+        //         "ContextInfo |--> &AnalyzeAfterBatch || Condition=%IsAnalyze",
+        //         "&AddBatch",
+        //     ],
+        // },
+        // "Train":{
+        //     "In":["BatchParam", "OptimizeParam"], // Name of input args.
+        //     "Routings": [
+        //         "OptimizeParam |--> &#utils_torch.train.ParseOptimizeParamEpochBatch",
+        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.Train"
+        //     ],
+        // },
+        // "TestEpoch":{
+        //     "In": ["BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
+        //     "Routings": [
+        //         "NotifyEpochBatchList |--> &Register2NotifyEpochBatchList",
+        //         "&ClearEpoch", "&ClearBatch", "&NotifyEpochIndex",
+        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTest |--> BatchNum",
+        //         "BatchParam, OptimizeParam |--> &TestBatch || Repeat=%BatchNum",
+        //         "&AddEpoch",
+        //     ],
+        // },
+        // "TestBatch":{
+        //     "In": ["BatchParam", "OptimizeParam"],
+        //     "Routings": [
+        //         "&NotifyBatchIndex",
+        //         "BatchParam, OptimizeParam |--> &Test",
+        //         "&AddBatch",
+        //     ],
+        // },
+        // "Test":{
+        //     "In":["BatchParam", "OptimizeParam"], // Name of input args.
+        //     "Routings": [
+        //         "OptimizeParam |--> &#utils_torch.train.ParseOptimizeParamEpochBatch",
+        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.Test"
+        //     ],
+        // },
     },
 }

@@ -18,6 +18,9 @@
                     "SaveName": ["agent"],
                     "MountPath": ["/&^object.agent"],
                 },
+                // "FunctionCall":[
+                //     ["&^object.agent.LoadFromFile", ["LoadDir=&~cache.In.SaveDir", "Name=agent"]],
+                // ]
             },
             {
                 "LoadObj":{
@@ -134,13 +137,13 @@
         {
             "BuildObjFromFile":{
                 "ParamFilePath": "./param/trainer.jsonc",
-                "ModulePath": "utils_torch.train.TrainerForEpochBatchTraining",
+                "ModulePath": "utils_torch.ExternalClasses.Trainer",
                 "MountPath": "&^object.trainer",
             },
         },
         {
             "FunctionCall": [
-                ["&^object.trainer.RegisterExternalMethod", ["SaveAndLoad", "&#utils_torch.ExternalMethods.SaveAndLoad"]], // Set Save and Load Method
+                //["&^object.trainer.RegisterExternalMethod", ["SaveAndLoad", "&#utils_torch.ExternalMethods.SaveAndLoad"]], // Set Save and Load Method
                 ["&^object.trainer.RegisterExternalMethod", ["AnalyzeBeforeTrain", "&#utils_torch.ExternalMethods.AnalyzeBeforeTrain"]], // Set AnalyzeAfterBatch Method
                 ["&^object.trainer.RegisterExternalMethod", ["AnalyzeAfterBatch", "&#utils_torch.ExternalMethods.AnalyzeAfterBatch"]], // Set AnalyzeAfterBatch Method
                 "&^object.trainer.InitFromParam",
@@ -177,10 +180,12 @@
         ],
         "__Tasks__":[
             {
-                "CallGraph": {
-                    "Router": "&^object.trainer.Dynamics.Main",
-                    "In": ["&~Epoch.Num", "&~BatchParam", "&~OptimizeParam", "&~NotifyEpochBatchList"],
-                },
+                "FunctionCall": [
+                    [
+                        "&^object.trainer.Train",
+                        ["&^object.agent", "&~Epoch.Num", "&~BatchParam", "&~OptimizeParam", "&~NotifyEpochBatchList"],
+                    ]
+                ],
             },
         ]
     },
