@@ -111,6 +111,9 @@ class Agent(object):
         return utils_torch.model.LogForModel(self, data, Name)
     def PlotTrueAndPredictedTrajectory(self, ):
         return
+    # def TrainBatch(self, TrainParam, BatchParam, log):
+    #     data = self.Modules.Dataset.GenerateBatch(BatchParam, log=log)
+    #     self.Modules.model.Train(data, TrainParam, log=log)
     def ReportSelf(self):
         utils_torch.AddLog("AgentPoint2D: id:%d"%id(self))
         utils_torch.AddLog("AgentPoint2D2: id:%d"%id(utils_torch.GetGlobalParam().object.agent))

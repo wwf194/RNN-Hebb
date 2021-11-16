@@ -19,8 +19,8 @@
         "__ResolveBase__": true,
     },
     "Dynamics":{
-        "InitBeforeEpochTrain":{
-            "In": ["BatchParam", "OptimizeParam"],
+        "TrainEpochInit":{ // Things to do before new epoch.
+            "In": ["BatchParam", "OptimizeParam", "log"],
             "Out": ["BatchNum"],
             "Routings":[
                 "Type=Train |--> &^object.image.ClearBatches",
@@ -28,14 +28,14 @@
                 "Type=Train |--> &^object.image.GetBatchNum |--> BatchNum",
             ]
         },
-        "Train":{
-            "In":["BatchParam", "TrainParam"],
+        "TrainBatch":{
+            "In":["BatchParam", "TrainParam", "log"],
             "Out":[],
             "Routings": [
                 "Type=Train |--> &^object.image.GetBatch |--> DataBatch",
                 "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
                 "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
-                "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Train",
+                "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TrainBatch",
             ],
         },
         "InitBeforeEpochTest":{
@@ -47,24 +47,24 @@
                 "Type=Test |--> &^object.image.GetBatchNum|--> BatchNum",
             ]
         },
-        "Test":{
-            "In":["BatchParam", "TrainParam"],
+        "TestBatch":{
+            "In":["BatchParam", "TrainParam", "log"],
             "Out":[],
             "Routings": [
                 "Type=Test |--> &^object.image.GetBatch |--> DataBatch",
                 "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
                 "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
-                "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Test",
+                "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TestBatch",
             ],
         },
-        "TestRandom":{
-            "In":["BatchParam", "TrainParam"],
+        "TestBatchRandom":{
+            "In":["BatchParam", "TrainParam", "log"],
             "Out":[],
             "Routings": [
                 "Type=Test |--> &^object.image.GetRandomBatch |--> DataBatch",
                 "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
                 "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
-                "ModelInput, ModelOutputTarget, TrainParam |--> &model.Dynamics.Test",
+                "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TestBatch",
             ],
         }
     }

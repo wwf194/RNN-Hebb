@@ -11,8 +11,8 @@
         { // Build data logger.
             "BuildObj":{
                 "ModulePath": [
-                    "utils_torch.log.LoggerForEpochBatchTrain",
-                    "utils_torch.log.LoggerForEpochBatchTrain"
+                    "utils_torch.log.LogForEpochBatchTrain",
+                    "utils_torch.log.LogForEpochBatchTrain"
                 ],
                 "MountPath":["&^log.DataTrain", "&^log.DataTest"]
             }

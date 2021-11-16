@@ -1,63 +1,64 @@
 import utils_torch
-class Trainer(utils_torch.train.TrainerForEpochBatchTraining):
+import Analyze
+class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
+    def __init__(self, param, **kw):
+        super().__init__(param, **kw)
+    def InitFromParam(self, IsLoad=False):
+        self.SetAnalyzer()
+        super().InitFromParam(IsLoad=IsLoad)
+    def SetAnalyzer(self):
+        param = self.param
+        cache = self.cache
+        utils_torch.parse.ParsePyObjStatic(param)
+        task = param.Task
+        if "CIFAR10" in task:
+            cache.analyzer = Analyze.AnalysisForImageClassificationTask()
+        elif "MNIST" in task:
+            cache.analyzer = Analyze.AnalysisForImageClassificationTask()
+        else:
+            raise Exception(task)
+    def BeforeTrain(self):
+        cache = self.cache
+        analyzer = cache.analyzer
+        self.SetEpochIndex(-1)
+        self.SetBatchIndex(cache.BatchNum - 1)
+        if hasattr(cache.analyzer, "SaveAndLoad"):
+            analyzer.SaveAndLoad(self.GenerateContextInfo())
+        if hasattr(cache.analyzer, "AnalyzeBeforeTrain"):
+            analyzer.AnalyzeBeforeTrain(self.GenerateContextInfo())
+        self.ClearEpoch()
     def Train(self, agent, EpochNum, BatchParam, OptimizeParam, NotifyEpochBatchList):
         cache = self.cache
+        data = self.data
         self.SetEpochNum(EpochNum)
         self.agent = agent
-        BatchNum = utils_torch.functions.Call(self.agent.Dynamics.InitBeforeEpochTrain, BatchParam, OptimizeParam)[0]
+        BatchNum = utils_torch.functions.Call(
+            self.agent.Dynamics.TrainEpochInit,
+            BatchParam, OptimizeParam, cache.LogTrain,
+        )[0]
         self.SetBatchNum(BatchNum)
         self.Register2NotifyEpochBatchList(NotifyEpochBatchList)
-        self.SetEpochIndex(-1)
-        self.SetBatchIndex(BatchNum - 1)
-        self.SaveAndLoad(self.GenerateContextInfo())
-        self.ClearEpoch()
+        self.BeforeTrain()
         for EpochIndex in range(cache.EpochNum):
             self.SetEpochIndex(EpochIndex)
             self.NotifyEpochIndex()
             self.TrainEpoch(BatchParam, OptimizeParam)
     def TrainEpoch(self, BatchParam, OptimizeParam):
+        cache = self.cache
         self.ClearBatch()
-        BatchNum = utils_torch.functions.Call(self.agent.Dynamics.InitBeforeEpochTrain, BatchParam, OptimizeParam)[0]
+        BatchNum = utils_torch.functions.Call(self.agent.Dynamics.TrainEpochInit, BatchParam, OptimizeParam)[0]
         self.SetBatchNum(BatchNum)
         for BatchIndex in range(BatchNum):
             self.SetBatchIndex(BatchIndex)
             self.NotifyBatchIndex()
             self.TrainBatch(BatchParam, OptimizeParam)
-            #self.AddBatchIndex()
+            cache.analyzer.AnalyzeAfterEveryBatch(self.GenerateContextInfo())
     def TrainBatch(self, BatchParam, OptimizeParam):
-        self.ReportEpochBatch()     
-        self.agent.Dynamics.Train(BatchParam, OptimizeParam)
+        self.ReportEpochBatch()
+        self.agent.Dynamics.TrainBatch(BatchParam, OptimizeParam, self.cache.LogTrain)
         for CheckPoint in self.cache.CheckPointList:
             IsCheckPoint = CheckPoint.AddBatchAndReturnIsCheckPoint()
             if IsCheckPoint:
                 CheckPoint.GetMethod()(self.GenerateContextInfo())
-    def SaveAndLoad(self, ContextInfo):
-        SaveAndLoad(ContextInfo)
-
-def SaveAndLoad(ContextInfo):
-    EpochIndex = ContextInfo["EpochIndex"]
-    BatchIndex = ContextInfo["BatchIndex"]
-    ContextInfo.setdefault("ObjRoot", utils_torch.GetGlobalParam())
-    SaveDir = utils_torch.SetSubSaveDirEpochBatch("SavedModel", EpochIndex, BatchIndex)
-    GlobalParam = utils_torch.GetGlobalParam()
-    # GlobalParam.object.agent.ReportSelf()
-    # print(id(GlobalParam.object.agent.Modules.model.GetTrainWeight()["Recurrent.FiringRate2RecurrentInput.Weight"]))
-    # print(id(GlobalParam.object.agent.Modules.model.Modules.Recurrent.Modules.FiringRate2RecurrentInput.data.Weight))
-
-    #print(GlobalParam.object.agent.Modules.model.Modules.Recurrent.Modules.FiringRate2RecurrentInput.data.Weight[0][0:5])
-    utils_torch.DoTasks(
-            "&^param.task.Save", 
-            In={"SaveDir": SaveDir},
-            **ContextInfo
-        )
-    #print(utils_torch.json.DataFile2PyObj(SaveDir + "agent.model.Recurrent.FiringRate2RecurrentInput.data").Weight[0][0:5])
-    utils_torch.DoTasks(
-        "&^param.task.Load",
-        In={"SaveDir": SaveDir}, 
-        **ContextInfo
-    )
-    # GlobalParam.object.agent.ReportSelf()
-    GlobalParam = utils_torch.GetGlobalParam()
-    GlobalParam.object.trainer.ParseRouters()
-
-    ContextInfo["Trainer"].agent = GlobalParam.object.agent
+    # def SaveAndLoad(self, ContextInfo):
+    #     self.cache.analyzer.SaveAndLoad(ContextInfo)

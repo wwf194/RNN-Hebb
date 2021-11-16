@@ -45,7 +45,7 @@
                 "Reference": "&Modules.CalculatePredictionLoss",
             },
             "Activity":[ // to be implemented.
-                "cellStates", "hiddenStates"
+                "membranePotentials", "recurrentInputs"
             ]
         },
     },
@@ -70,7 +70,7 @@
                     "NoSelfConnection": true,
                     "Weight.Init":{
                         "Method": "KaimingNormal",
-                        "Coefficient": 1.0e-1
+                        "Coefficient": 1.0e-0
                     }
                 },
                 "FiringRate2Output":{
@@ -80,7 +80,7 @@
                     "Input.Num": "$Neurons.Recurrent.Num",
                     "Output.Num": "$Neurons.Output.Num",                    
                 },
-                "CellStateDecay":{
+                "MembranePotentialDecay":{
                     "Type": "Internal",
                 },
                 "NoiseGenerator":{
@@ -96,23 +96,23 @@
             },
             "Dynamics":{
                 "Main":{
-                    "In": ["recurrentInput", "cellState", "input"],
-                    "Out": ["recurrentInputNext", "cellStateNext", "firingRate", "output"],
+                    "In": ["recurrentInput", "membranePotential", "input"],
+                    "Out": ["recurrentInputNext", "membranePotentialNext", "firingRate", "output"],
                     "Routings":[
-                        "&GetBias |--> bias",
-                        "recurrentInput, input, bias |--> &Add |--> inputTotal",
-                        "inputTotal |--> &NoiseGenerator |--> noise",
-                        "inputTotal, noise |--> &Add |--> inputTotal",
-                        "inputTotal, cellState |--> &ProcessCellStateAndTotalInput |--> cellState",
-                        "cellState |--> &NonLinear |--> firingRate",
-                        "firingRate |--> &FiringRate2RecurrentInput |--> recurrentInputNext",
-                        "firingRate |--> &FiringRate2Output |--> output",
-                        "cellState |--> &CellStateDecay |--> cellStateNext",
+                        "                       &GetBias                   |--> bias",
+                        "recurrentInput, input, bias |--> &Add             |--> inputTotal",
+                        "inputTotal        |--> &NoiseGenerator            |--> noise",
+                        "inputTotal, noise |--> &Add                       |--> inputTotal",
+                        "inputTotal, membranePotential |--> &ProcessMembranePotentialAndTotalInput |--> membranePotential",
+                        "membranePotential |--> &NonLinear                 |--> firingRate",
+                        "firingRate        |--> &FiringRate2RecurrentInput |--> recurrentInputNext",
+                        "firingRate        |--> &FiringRate2Output         |--> output",
+                        "membranePotential |--> &MembranePotentialDecay    |--> membranePotentialNext",
                     ]
                 },
             }
         },
-        "Input":{
+        "InputTransform":{
             "Type": "NonLinearLayer",
             "Subtype":"f(Wx+b)",
             "Input.Num":"$Neurons.Input.Num",
@@ -124,7 +124,7 @@
             "Bias": true,
             "NonLinear":"$Neurons.Recurrent.NonLinear"
         },
-        "SplitHiddenAndCellState":{
+        "SplitHiddenAndmembranePotential":{
             "Type": "Lambda",
             "Lambda": "lambda data: [data[:, :($Neurons.Recurrent.Num)], data[:, ($Neurons.Recurrent.Num):]]"
         },
@@ -132,31 +132,45 @@
             "Type": "Lambda",
             "Lambda": "lambda output: output[:, -1, :]"
         },
-        "InputManager":{
+        "InputCache":{
             "Type":"SignalHolder",
         },
-        "OutputManager":{
+        "LogOutput":{
             "Type":"SerialReceiver",
             "Send":{
                 "Method": "Lambda",
                 "Args": "lambda List:torch.stack(List, axis=1)"
             }
         },
-        "HiddenStates":{
+        "LogRecurrentInput":{
             "Type": "SerialReceiver",
             "Send":{
                 "Method": "Lambda",
                 "Args": "lambda List:torch.stack(List, axis=1)"
             }
         },
-        "CellStates":{
+        "LogMembranePotential":{
             "Type": "SerialReceiver",
             "Send":{
                 "Method": "Lambda",
                 "Args": "lambda List:torch.stack(List, axis=1)"
             }
         },
-        "FiringRates":{
+        "LogFiringRate":{
+            "Type": "SerialReceiver",
+            "Send":{
+                "Method": "Lambda",
+                "Args": "lambda List:torch.stack(List, axis=1)"
+            }
+        },
+        "LogInput":{
+            "Type": "SerialReceiver",
+            "Send":{
+                "Method": "Lambda",
+                "Args": "lambda List:torch.stack(List, axis=1)"
+            }
+        },
+        "LogInputTransformed":{
             "Type": "SerialReceiver",
             "Send":{
                 "Method": "Lambda",
@@ -179,31 +193,34 @@
         "GradientDescend.Type":"GradientDescend"
     },
     "Dynamics":{
-        "Run":{
-            "In":["input", "time"],
-            "Out":["outputSeries", "hiddenStateSeries", "cellStateSeries", "firingRateSeries"],
+        "Run": //"InternalMethod",
+        {
+            "In":["input", "time", "log"],
+            "Out":["logOutput", "logRecurrentInput", "logMembranePotential", "logFiringRate"],
             "Routings":[
-                "input |--> &InputManager.Receive",
+                "input |--> &InputCache.Receive",
                 "RefInput=%input |--> &*GenerateZeroInitState |--> state", // States start from zero
-                "state |--> &SplitHiddenAndCellState |--> hiddenState, cellState",
-                "hiddenState, cellState |--> &Iterate |--> hiddenState, cellState || repeat=%time",
-                "&OutputManager.Send |--> outputSeries",
-                "&HiddenStates.Send |--> hiddenStateSeries",
-                "&CellStates.Send |--> cellStateSeries",
-                "&FiringRates.Send |--> firingRateSeries",
+                "state |--> &SplitHiddenAndmembranePotential |--> recurrentInput, membranePotential",
+                "recurrentInput, membranePotential |--> &Iterate |--> recurrentInput, membranePotential || repeat=%time",
+                "&LogOutput.Send            |--> logOutput",
+                "&LogRecurrentInput.Send    |--> logRecurrentInput",
+                "&LogMembranePotential.Send |--> logMembranePotential",
+                "&LogFiringRate.Send        |--> logFiringRate",
             ]
         },
         "Iterate":{
-            "In":["hiddenState", "cellState"],
-            "Out":["hiddenState", "cellState"],
+            "In": ["recurrentInput", "membranePotential"],
+            "Out":["recurrentInput", "membranePotential"],
             "Routings":[
-                "&InputManager.Send |--> input",
-                "input |--> &Input |--> inputProcessed",
-                "hiddenState, cellState, inputProcessed |--> &Recurrent |--> hiddenState, cellState, firingRate, output",
-                "output |--> &OutputManager.Receive",
-                "hiddenState |--> &HiddenStates.Receive",
-                "cellState |--> &CellStates.Receive",
-                "firingRate |--> &FiringRates.Receive",
+                "&InputCache.Send  |--> input",
+                "input             |--> &InputTransform              |--> inputTransformed",
+                "recurrentInput, membranePotential, inputTransformed |--> &Recurrent |--> recurrentInput, membranePotential, firingRate, output",
+                "output            |--> &LogOutput.Receive",
+                "recurrentInput    |--> &LogRecurrentInput.Receive",
+                "membranePotential |--> &LogMembranePotential.Receive",
+                "firingRate        |--> &LogFiringRate.Receive",
+                "input             |--> &LogInput.Receive",
+                "inputTransformed  |--> &LogInputTransformed.Receive"
             ]
         },
         "CalculateWeightConstrainLoss":{
@@ -222,93 +239,109 @@
             ]
         },
         "Optimize":{
-            "In": ["outputSeries", "outputTarget", "activity", "trainParam"],
+            "In": ["outputs", "outputTarget", "activity", "trainParam", "IsTest", "log"],
             "Routings":[
-                "outputSeries |--> &GetLastOutput |--> output",
-                "output, outputTarget |--> &PredictionLoss |--> mainLoss",
-                "activity, mainLoss |--> &CalculateActivityConstrainLoss |--> activityConstrainLoss",
+                "outputs |--> &GetLastOutput |--> output",
+                "output, outputTarget |--> &PredictionLoss                 |--> mainLoss",
+                "activity, mainLoss   |--> &CalculateActivityConstrainLoss |--> activityConstrainLoss",
                 "mainLoss |--> &CalculateWeightConstrainLoss |--> weightConstrainLoss",
                 "mainLoss, activityConstrainLoss, weightConstrainLoss |--> &Add |--> totalLoss",
                 "totalLoss |--> &CalculateGradient",
 
-                "&*GetPlotWeight |--> plotWeight",
-                "plotWeight, logger=DataTrain |--> &LogWeight", // Log weight before updating
-
                 "&*GetTrainWeight |--> trainWeight",
-                "trainWeight, logger=DataTrain |--> &LogWeightStat",
-                "trainWeight, trainParam |--> &GradientDescend |--> MinusGrad",
-                "Name=MinusGrad, Data=%MinusGrad, Type=Grad |--> &^log.DataTrain.AddLogCache",
+                "trainWeight,    trainParam,      Update=%IsTest      |--> &GradientDescend |--> MinusGrad",
+                "Name=MinusGrad, data=%MinusGrad, Type=Grad, log=%log |--> &LogCache",
 
-                "output,       Name='output',       logger=DataTrain |--> &LogStat",
-                "outputTarget, Name='outputTarget', logger=DataTrain |--> &LogStat",
-                
-                "totalLoss,             Name=TotalLoss,             logger=DataTrain |--> &LogLoss",
-                "mainLoss,              Name=MainLoss,              logger=DataTrain |--> &LogLoss",
-                "activityConstrainLoss, Name=ActivityConstrainLoss, logger=DataTrain |--> &LogLoss",
-                "weightConstrainLoss,   Name=WeightConstrainLoss,   logger=DataTrain |--> &LogLoss",
+                "&LogPerformance || InheritStates=True"
             ],
         },
-        "OptimizeTest":{
-            "In": ["outputSeries", "outputTarget", "activity", "trainParam"],
+        "LogPerformance":{
             "Routings":[
-                "outputSeries |--> &GetLastOutput |--> output",
-                "output, outputTarget |--> &PredictionLoss |--> mainLoss",
-                "activity, mainLoss |--> &CalculateActivityConstrainLoss |--> activityConstrainLoss",
-                "mainLoss |--> &CalculateWeightConstrainLoss |--> weightConstrainLoss",
-                "mainLoss, activityConstrainLoss, weightConstrainLoss |--> &Add |--> totalLoss",
-                "totalLoss |--> &CalculateGradient",
-                
-                "&*GetPlotWeight |--> plotWeight",
-                "plotWeight, logger=DataTest |--> &LogWeight",
-
-                "&*GetTrainWeight |--> trainWeight",
-                "trainWeight, logger=DataTest |--> &LogWeightStat",
-                "trainWeight, trainParam, Update=False |--> &GradientDescend |--> MinusGrad",
-                "Name=MinusGrad, Data=%MinusGrad, Type=Grad |--> &^log.DataTest.AddLogCache", 
-
-                "output,       Name='output',       logger=DataTest |--> &LogStat",
-                "outputTarget, Name='outputTarget', logger=DataTest |--> &LogStat",
-                
-                "totalLoss,             Name=TotalLoss,             logger=DataTest |--> &LogLoss",
-                "mainLoss,              Name=MainLoss,              logger=DataTest |--> &LogLoss",
-                "activityConstrainLoss, Name=ActivityConstrainLoss, logger=DataTest |--> &LogLoss",
-                "weightConstrainLoss,   Name=WeightConstrainLoss,   logger=DataTest |--> &LogLoss",
-            ],
-        },
-        "Train":{
-            "In":["input", "outputTarget", "trainParam"],
-            "Out":[],
-            "Routings":[
-                "&GetIterationTime |--> iterationTime",
-                "input, iterationTime |--> &Run |--> outputSeries, hiddenStateSeries, cellStateSeries, firingRateSeries",
-                "hiddenStateSeries, cellStateSeries, firingRateSeries |--> &Merge |--> activity",
-                "outputSeries, outputTarget, activity, trainParam |--> &Optimize",
-
-                "hiddenStateSeries, Name=HiddenStates,  logger=DataTrain |-->  &LogTimeVaryingActivity",
-                "cellStateSeries,   Name=CellStates,    logger=DataTrain |-->    &LogTimeVaryingActivity",
-                "firingRateSeries,  Name=FiringRates,   logger=DataTrain |-->   &LogTimeVaryingActivity",
-                "outputSeries,      Name=Outputs,       logger=DataTrain |-->       &LogTimeVaryingActivity",
-                //"outputTarget,      Name=OutputTargets, logger=DataTrain |--> &LogTimeVaryingActivity",
-                
-                // "firingRateSeries,  Name=FiringRates |-->   &LogSpatialActivity",
+                "totalLoss,             Name=TotalLoss,             log=%log |--> &LogLoss",
+                "mainLoss,              Name=MainLoss,              log=%log |--> &LogLoss",
+                "activityConstrainLoss, Name=ActivityConstrainLoss, log=%log |--> &LogLoss",
+                "weightConstrainLoss,   Name=WeightConstrainLoss,   log=%log |--> &LogLoss",
+                "output                 |--> &Probability2MostProbableIndex  |--> outputPredicted",
+                "outputPredicted,       outputTarget,               log=%log |--> &LogAccuracyForSingleClassPrediction"
             ]
         },
-        "Test":{
-            "In":["input", "outputTarget", "trainParam"],
+        "TrainBatch":{
+            "In":["input", "outputTarget", "trainParam", "log"],
             "Out":[],
             "Routings":[
+                "&LogWeight || InheritStates=True",
+                
                 "&GetIterationTime |--> iterationTime",
-                "input, iterationTime |--> &Run |--> outputSeries, hiddenStateSeries, cellStateSeries, firingRateSeries",
-                "hiddenStateSeries, cellStateSeries, firingRateSeries |--> &Merge |--> activity",
-                "outputSeries, outputTarget, activity, trainParam |--> &OptimizeTest",
-                    
-                "hiddenStateSeries, Name=HiddenStates, logger=DataTest |--> &LogTimeVaryingActivity",
-                "cellStateSeries,   Name=CellStates, logger=DataTest   |--> &LogTimeVaryingActivity",
-                "firingRateSeries,  Name=FiringRates, logger=DataTest  |--> &LogTimeVaryingActivity",
-                "outputSeries, Name=Outputs, logger=DataTest           |--> &LogTimeVaryingActivity",
-                //"outputTarget, Name=OutputTargets, logger=DataTest     |--> &LogTimeVaryingActivity",
+                "input, iterationTime, log |--> &Run |--> outputs, recurrentInputs, membranePotentials, firingRates",
+                "recurrentInputs, membranePotentials, firingRates |--> &Merge |--> activity",
+                "outputs, outputTarget, activity, trainParam |--> &Optimize",
+
+                "&LogActivity || InheritStates=True",
+                
+            ]
+        },
+        "TestBatch":{
+            "In":["input", "outputTarget", "trainParam", "log"],
+            "Out":[],
+            "Routings":[
+                "&LogWeight || InheritStates=True",
+                
+                "&GetIterationTime |--> iterationTime",
+                "input, iterationTime, log |--> &Run |--> outputs, recurrentInputs, membranePotentials, firingRates",
+                "recurrentInputs, membranePotentials, firingRates |--> &Merge |--> activity",
+                "outputs, outputTarget, activity, trainParam, IsTest=False, log=%log |--> &Optimize",
+                
+                "&LogInput.Send    |--> inputs",
+                "&LogInputTransformed.Send  |--> inputTransformed",
+                
+                "&LogActivity || InheritStates=True"
+            ]
+        },
+        "LogActivity":{
+            "Routings":[
+                "recurrentInputs,    Name=RecurrentInputs,         log=%log |--> &LogCache",
+                "membranePotentials, Name=MembranePotentials,      log=%log |--> &LogCache",
+                "firingRates,        Name=FiringRates,             log=%log |--> &LogCache",
+                "outputs,            Name=Outputs,                 log=%log |--> &LogCache",
+                "outputTarget,       Name=OutputTarget,            log=%log |--> &LogCache",
+                "inputs,             Name=Inputs,                  log=%log |--> &LogCache",
+                "inputTransformed,   Name=InputTransformed,        log=%log |--> &LogCache",
+                "recurrentInputs,    Name=RecurrentInputs-Stat,    log=%log |--> &LogStat",
+                "membranePotentials, Name=MembranePotentials-Stat, log=%log |--> &LogStat",
+                "firingRates,        Name=FiringRates-Stat,        log=%log |--> &LogStat",
+                "outputs,            Name=Outputs-Stat,            log=%log |--> &LogStat",
+                "outputTarget,       Name=OutputTarget-Stat,       log=%log |--> &LogStat",
+                "inputs,             Name=Inputs-Stat,             log=%log |--> &LogStat",
+                "inputTransformed,   Name=InputTransformed-Stat,   log=%log |--> &LogStat",
+            ]
+        },
+        "LogWeight":{
+            "Routings":[
+                "&*GetPlotWeight |--> weightPlot",
+                "&*GetTrainWeight |--> weightTrain",
+                "weightPlot,  Name=Weight,      log=%log |--> &LogCache", // Log weight before updating                
+                "weightTrain, Name=Weight-Stat, log=%log |--> &LogWeightStat",
             ]
         },
         "__Entry__":"&Dynamics.Run"
+    },
+    "Analyze":{
+        "ResponseAndWeightPairs":{
+            "Recurrent":[
+                "FiringRates", // Response A
+                "FiringRates", // Response B
+                "Recurrent.FiringRate2RecurrentInput.Weight" // Weight
+            ],
+            "Output":{
+                "ResponseA": "FiringRates",
+                "ResponseB": "Outputs",
+                "Weight": "Recurrent.FiringRate2Output.Weight",
+            },
+            "Input":{
+                "ResponseA": "Inputs",
+                "ResponseB": "FiringRates",
+                "Weight": "InputTransform.Weight",
+            }
+        },
     },
 }

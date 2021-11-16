@@ -1,6 +1,6 @@
 {
     "__ResolveBase__": true,
-    "Type": "TrainerForEpochBatchTraining",
+    "Type": "TrainerForEpochBatchTrain",
     "Method": "GradientDescend",
     "Batch.Num": "Auto",
     "Epoch.Num": "$^param.task.Train.Epoch.Num",
@@ -11,20 +11,22 @@
             "Epoch.Num": "$Epoch.Num",
             "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
-            "Method": "&#utils_torch.ExternalMethods.SaveAndLoad"
+            "Method": "&~*analyzer.SaveAndLoad"
         },
         "CheckPointAnalyze":{
             "Type": "CheckPointForEpochBatchTraining",
             "Epoch.Num": "$Epoch.Num",
             "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
-            "Method": "&#utils_torch.ExternalMethods.AnalyzeAfterBatch"
+            "Method": "&~*analyzer.AnalyzeAfterBatch"
         },
         "AnalyzeAfterBatch":{
             "Type": "External"
         },
-        "SaveAndLoad":{
-            "Type": "External"
+        "CheckPointSaveAndLoad":{
+            "Type": "CheckPointForEpochBatchTraining",
+            "CalculateCheckPointMode": "EveryBatch",
+            "Method": "&~*analyzer.SaveAndLoad"
         }
     },
     "Dynamics":{
@@ -33,7 +35,7 @@
         //     "In": ["EpochNum", "BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
         //     "Routings":[
         //         "EpochNum |--> &SetEpochNum", 
-        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTrain |--> BatchNum",
+        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.TrainEpochInit |--> BatchNum",
         //         "BatchNum |--> &SetBatchNum",
         //         "NotifyEpochBatchList |--> &BeforeTrain",
         //         "EpochIndex=-1 |--> &SetEpochIndex", "BatchIndex=0 |--> &SetBatchIndex",
@@ -53,7 +55,7 @@
         //     "In": ["BatchParam", "OptimizeParam"],
         //     "Routings": [
         //         "&ClearBatch", "&NotifyEpochIndex",
-        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTrain |--> BatchNum",
+        //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.TrainEpochInit |--> BatchNum",
         //         "BatchNum |--> &SetBatchNum",
         //         "BatchParam, OptimizeParam |--> &TrainBatch || Repeat=%BatchNum",
         //         "&AddEpoch",

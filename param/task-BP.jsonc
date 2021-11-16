@@ -1,5 +1,5 @@
 {
-    "Task": "TrainBP",
+    "Task": "TrainBP-CIFAR10",
     "Main":[
         {
             "DoTasks":"&^param.task.Init"
@@ -99,11 +99,11 @@
             ],
         },
         {
-            "DoTasks": "&^param.task.BuildTrainer"
+            "DoTasks": "&^param.task.BeforeTrain"
         },
         {
-            "DoTasks": "&^param.task.BeforeTrain"
-        }
+            "DoTasks": "&^param.task.BuildTrainer"
+        },
     ],
     "BuildDataset":[
         {
@@ -141,11 +141,12 @@
                 "MountPath": "&^object.trainer",
             },
         },
+        "ParseParamStatic",
         {
             "FunctionCall": [
                 //["&^object.trainer.RegisterExternalMethod", ["SaveAndLoad", "&#utils_torch.ExternalMethods.SaveAndLoad"]], // Set Save and Load Method
-                ["&^object.trainer.RegisterExternalMethod", ["AnalyzeBeforeTrain", "&#utils_torch.ExternalMethods.AnalyzeBeforeTrain"]], // Set AnalyzeAfterBatch Method
-                ["&^object.trainer.RegisterExternalMethod", ["AnalyzeAfterBatch", "&#utils_torch.ExternalMethods.AnalyzeAfterBatch"]], // Set AnalyzeAfterBatch Method
+                //#["&^object.trainer.RegisterExternalMethod", ["AnalyzeBeforeTrain", "&#utils_torch.ExternalMethods.AnalyzeBeforeTrain"]], // Set AnalyzeAfterBatch Method
+                //["&^object.trainer.RegisterExternalMethod", ["AnalyzeAfterBatch", "&#utils_torch.ExternalMethods.AnalyzeAfterBatch"]], // Set AnalyzeAfterBatch Method
                 "&^object.trainer.InitFromParam",
             ]
         },
@@ -156,7 +157,7 @@
         {
             "FunctionCall": [
                 "&^object.agent.cache.Modules.model.SetTrainWeight",
-                "&#utils_torch.ExternalMethods.AddObjRefForParseRouters",
+                //"&#utils_torch.ExternalMethods.AddObjRefForParseRouters",
                 //"&#utils_torch.ExternalMethods.RegisterExternalMethods",
             ]
         },
@@ -194,8 +195,8 @@
         { // Build data logger.
             "BuildObj":{
                 "ModulePath": [
-                    "utils_torch.log.LoggerForEpochBatchTrain",
-                    "utils_torch.log.LoggerForEpochBatchTrain"
+                    "utils_torch.log.LogForEpochBatchTrain",
+                    "utils_torch.log.LogForEpochBatchTrain"
                 ],
                 "MountPath":[
                     "&^log.DataTrain",
