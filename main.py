@@ -103,7 +103,7 @@ import Analyze
 def AddObjRefForParseRouters():
     ObjRefLocal = utils_torch.PyObj()
     #ObjRefLocal.LogSpatialActivity = utils.model.LogSpatialActivity
-    utils_torch.model.Add2ObjRefListForParseRouters(ObjRefLocal)
+    utils_torch.module.Add2ObjRefListForParseRouters(ObjRefLocal)
 def RegisterExternalClassesAndMethods():
     import Train
     # utils_torch.RegisterExternalMethods("SaveAndLoad", Train.SaveAndLoad)

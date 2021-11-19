@@ -27,11 +27,12 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
         if hasattr(cache.analyzer, "AnalyzeBeforeTrain"):
             analyzer.AnalyzeBeforeTrain(self.GenerateContextInfo())
         self.ClearEpoch()
-    def Train(self, agent, EpochNum, BatchParam, OptimizeParam, NotifyEpochBatchList):
+    def Train(self, agent, world, EpochNum, BatchParam, OptimizeParam, NotifyEpochBatchList):
         cache = self.cache
         data = self.data
         self.SetEpochNum(EpochNum)
         self.agent = agent
+        self.world = world
         BatchNum = utils_torch.functions.Call(
             self.agent.Dynamics.TrainEpochInit,
             BatchParam, OptimizeParam, cache.LogTrain,
@@ -39,6 +40,8 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
         self.SetBatchNum(BatchNum)
         self.Register2NotifyEpochBatchList(NotifyEpochBatchList)
         self.BeforeTrain()
+        self.NotifyEpochNum()
+        self.NotifyBatchNum()
         for EpochIndex in range(cache.EpochNum):
             self.SetEpochIndex(EpochIndex)
             self.NotifyEpochIndex()
@@ -46,13 +49,15 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
     def TrainEpoch(self, BatchParam, OptimizeParam):
         cache = self.cache
         self.ClearBatch()
-        BatchNum = utils_torch.functions.Call(self.agent.Dynamics.TrainEpochInit, BatchParam, OptimizeParam)[0]
+        BatchNum = utils_torch.functions.Call(self.agent.Dynamics.TrainEpochInit, 
+            BatchParam, OptimizeParam, self.Modules.LogTrain,
+        )[0]
         self.SetBatchNum(BatchNum)
         for BatchIndex in range(BatchNum):
             self.SetBatchIndex(BatchIndex)
             self.NotifyBatchIndex()
             self.TrainBatch(BatchParam, OptimizeParam)
-            cache.analyzer.AnalyzeAfterEveryBatch(self.GenerateContextInfo())
+            #cache.analyzer.AnalyzeAfterEveryBatch(self.GenerateContextInfo())
     def TrainBatch(self, BatchParam, OptimizeParam):
         self.ReportEpochBatch()
         self.agent.Dynamics.TrainBatch(BatchParam, OptimizeParam, self.cache.LogTrain)

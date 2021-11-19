@@ -8,15 +8,6 @@
                 }
             ],
         },
-        { // Build data logger.
-            "BuildObj":{
-                "ModulePath": [
-                    "utils_torch.log.LogForEpochBatchTrain",
-                    "utils_torch.log.LogForEpochBatchTrain"
-                ],
-                "MountPath":["&^log.DataTrain", "&^log.DataTest"]
-            }
-        },
         { // Do tasks in task json file.
             "DoTasks": "&^param.task.Main"
         }
@@ -29,9 +20,6 @@
                     "MountPath":"&^param.task"
                 }
             ],
-        },
-        {
-            "DoTasks": "&^param.task.BuildLogger"
         },
         {
             "FunctionCall": [

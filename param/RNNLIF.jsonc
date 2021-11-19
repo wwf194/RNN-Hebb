@@ -270,11 +270,32 @@
             "Out":[],
             "Routings":[
                 "&LogWeight || InheritStates=True",
-                
+
                 "&GetIterationTime |--> iterationTime",
                 "input, iterationTime, log |--> &Run |--> outputs, recurrentInputs, membranePotentials, firingRates",
                 "recurrentInputs, membranePotentials, firingRates |--> &Merge |--> activity",
-                "outputs, outputTarget, activity, trainParam |--> &Optimize",
+                "outputs, outputTarget, activity, trainParam, IsTest=True, log=%log |--> &Optimize",
+
+                "&LogInput.Send    |--> inputs",
+                "&LogInputTransformed.Send  |--> inputTransformed",
+
+                "&LogActivity || InheritStates=True",
+                
+            ]
+        },
+        "RunBatch":{
+            "In":["input", "outputTarget", "trainParam", "log"],
+            "Out":[],
+            "Routings":[
+                "&LogWeight || InheritStates=True",
+
+                "&GetIterationTime |--> iterationTime",
+                "input, iterationTime, log |--> &Run |--> outputs, recurrentInputs, membranePotentials, firingRates",
+                "recurrentInputs, membranePotentials, firingRates |--> &Merge |--> activity",
+                "outputs, outputTarget, activity, trainParam, IsTest=True, log=%log |--> &Optimize",
+
+                "&LogInput.Send    |--> inputs",
+                "&LogInputTransformed.Send  |--> inputTransformed",
 
                 "&LogActivity || InheritStates=True",
                 
@@ -299,20 +320,20 @@
         },
         "LogActivity":{
             "Routings":[
-                "recurrentInputs,    Name=RecurrentInputs,         log=%log |--> &LogCache",
-                "membranePotentials, Name=MembranePotentials,      log=%log |--> &LogCache",
-                "firingRates,        Name=FiringRates,             log=%log |--> &LogCache",
-                "outputs,            Name=Outputs,                 log=%log |--> &LogCache",
-                "outputTarget,       Name=OutputTarget,            log=%log |--> &LogCache",
-                "inputs,             Name=Inputs,                  log=%log |--> &LogCache",
-                "inputTransformed,   Name=InputTransformed,        log=%log |--> &LogCache",
-                "recurrentInputs,    Name=RecurrentInputs-Stat,    log=%log |--> &LogStat",
-                "membranePotentials, Name=MembranePotentials-Stat, log=%log |--> &LogStat",
-                "firingRates,        Name=FiringRates-Stat,        log=%log |--> &LogStat",
-                "outputs,            Name=Outputs-Stat,            log=%log |--> &LogStat",
-                "outputTarget,       Name=OutputTarget-Stat,       log=%log |--> &LogStat",
-                "inputs,             Name=Inputs-Stat,             log=%log |--> &LogStat",
-                "inputTransformed,   Name=InputTransformed-Stat,   log=%log |--> &LogStat",
+                "recurrentInputs,    Name=RecurrentInputs,    Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "membranePotentials, Name=MembranePotentials, Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "firingRates,        Name=FiringRates,        Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "outputs,            Name=Outputs,            Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                //"outputTarget,       Name=OutputTarget,       Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "inputs,             Name=Inputs,             Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "inputTransformed,   Name=InputTransformed,   Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "recurrentInputs,    Name=RecurrentInputs,    Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
+                "membranePotentials, Name=MembranePotentials, Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
+                "firingRates,        Name=FiringRates,        Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
+                "outputs,            Name=Outputs,            Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
+                //"outputTarget,       Name=OutputTarget-Stat,       Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
+                "inputs,             Name=Inputs,             Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
+                "inputTransformed,   Name=InputTransformed,   Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
             ]
         },
         "LogWeight":{
@@ -327,11 +348,11 @@
     },
     "Analyze":{
         "ResponseAndWeightPairs":{
-            "Recurrent":[
-                "FiringRates", // Response A
-                "FiringRates", // Response B
-                "Recurrent.FiringRate2RecurrentInput.Weight" // Weight
-            ],
+            "Recurrent":{
+                "ResponseA": "FiringRates", // Response A
+                "ResponseB": "FiringRates", // Response B
+                "Weight": "Recurrent.FiringRate2RecurrentInput.Weight" // Weight
+            },
             "Output":{
                 "ResponseA": "FiringRates",
                 "ResponseB": "Outputs",

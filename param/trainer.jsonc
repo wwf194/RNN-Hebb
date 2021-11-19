@@ -6,28 +6,30 @@
     "Epoch.Num": "$^param.task.Train.Epoch.Num",
     "Task": "$^param.task.Task",
     "Modules":{
-        "CheckPointSave":{
+        "CheckPointSaveAndLoad":{
             "Type": "CheckPointForEpochBatchTraining",
-            "Epoch.Num": "$Epoch.Num",
-            "Batch.Num": "$Batch.Num",
+            // "Epoch.Num": "$Epoch.Num",
+            // "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
-            "Method": "&~*analyzer.SaveAndLoad"
+            "Method": "&~*cache.analyzer.SaveAndLoad"
         },
-        "CheckPointAnalyze":{
+        "CheckPointAnalyze1":{
             "Type": "CheckPointForEpochBatchTraining",
-            "Epoch.Num": "$Epoch.Num",
-            "Batch.Num": "$Batch.Num",
+            // "Epoch.Num": "$Epoch.Num",
+            // "Batch.Num": "$Batch.Num",
+            "CalculateCheckPointMode": "Always",
+            "Method": "&~*cache.analyzer.AnalyzeAfterEveryBatch"
+        },
+        "CheckPointAnalyze2":{
+            "Type": "CheckPointForEpochBatchTraining",
+            // "Epoch.Num": "$Epoch.Num",
+            // "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
-            "Method": "&~*analyzer.AnalyzeAfterBatch"
+            "Method": "&~*cache.analyzer.AnalyzeAfterBatch"
         },
         "AnalyzeAfterBatch":{
             "Type": "External"
         },
-        "CheckPointSaveAndLoad":{
-            "Type": "CheckPointForEpochBatchTraining",
-            "CalculateCheckPointMode": "EveryBatch",
-            "Method": "&~*analyzer.SaveAndLoad"
-        }
     },
     "Dynamics":{
         "Train": "ClassMethod",

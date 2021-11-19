@@ -184,25 +184,24 @@
                 "FunctionCall": [
                     [
                         "&^object.trainer.Train",
-                        ["&^object.agent", "&~Epoch.Num", "&~BatchParam", "&~OptimizeParam", "&~NotifyEpochBatchList"],
+                        ["&^object.agent", "&^object.images", "&~Epoch.Num", "&~BatchParam", "&~OptimizeParam", "&~NotifyEpochBatchList"],
                     ]
                 ],
             },
         ]
     },
-
-    "BuildLogger":[
-        { // Build data logger.
-            "BuildObj":{
-                "ModulePath": [
-                    "utils_torch.log.LogForEpochBatchTrain",
-                    "utils_torch.log.LogForEpochBatchTrain"
-                ],
-                "MountPath":[
-                    "&^log.DataTrain",
-                    "&^log.DataTest",
-                ]
-            }
-        },
-    ]
+    // "BuildLogger":[
+    //     { // Build data logger.
+    //         "BuildObj":{
+    //             "ModulePath": [
+    //                 "utils_torch.log.LogForEpochBatchTrain",
+    //                 "utils_torch.log.LogForEpochBatchTrain"
+    //             ],
+    //             "MountPath":[
+    //                 "&^log.DataTrain",
+    //                 "&^log.DataTest",
+    //             ]
+    //         }
+    //     },
+    // ]
 }

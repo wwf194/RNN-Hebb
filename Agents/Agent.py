@@ -25,14 +25,14 @@ from utils_torch.utils import NpArray2Tensor
 
 class Agent(object):
     def __init__(self, param=None, data=None, **kw):
-        utils_torch.model.InitForModel(
+        utils_torch.module.InitForModule(
             self, param, data, 
             FullName="agent",
             ClassPath="Agents.Agent",
             **kw
         )
     def InitFromParam(self, IsLoad=False):
-        utils_torch.model.InitFromParamForModel(self, IsLoad)
+        utils_torch.module.InitFromParamForModule(self, IsLoad)
         param = self.param
         data = self.data
         cache = self.cache
@@ -43,7 +43,7 @@ class Agent(object):
         self.BuildModules()
         if cache.IsInit:
             EnsureAttrs(param, "InitTasks", default=[])
-            utils_torch.model.DoTasksForModel(param.InitTasks, ObjCurrent=self.param, ObjRoot=utils_torch.GetGlobalParam())
+            utils_torch.module.DoTasksForModule(param.InitTasks, ObjCurrent=self.param, ObjRoot=utils_torch.GetGlobalParam())
         self.InitModules()
         self.ParseRouters()
 
@@ -104,11 +104,11 @@ class Agent(object):
     def GetTensorLocation(self):
         return self.cache.TensorLocation
     def SetLogger(self, logger):
-        return utils_torch.model.SetLoggerForModel(self, logger)
+        return utils_torch.module.SetLoggerForModule(self, logger)
     def GetLogger(self):
-        return utils_torch.model.GetLoggerForModel(self)
+        return utils_torch.module.GetLoggerForModule(self)
     def Log(self, data, Name="Undefined"):
-        return utils_torch.model.LogForModel(self, data, Name)
+        return utils_torch.module.LogForModule(self, data, Name)
     def PlotTrueAndPredictedTrajectory(self, ):
         return
     # def TrainBatch(self, TrainParam, BatchParam, log):
@@ -120,4 +120,4 @@ class Agent(object):
         utils_torch.AddLog("Weight.id: %d"%id(self.Modules.model.Modules.Recurrent.Modules.FiringRate2RecurrentInput.data.Weight))
 
 __MainClass__ = Agent
-utils_torch.model.SetMethodForModelClass(__MainClass__)
+utils_torch.module.SetMethodForModuleClass(__MainClass__)

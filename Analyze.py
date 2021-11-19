@@ -5,15 +5,16 @@ from collections import defaultdict
 
 import utils_torch
 from utils_torch.attrs import *
+from utils_torch.json import EmptyPyObj
 
 class LogForWeightAndResponseSimilarityCorrelation:
     def __init__(self):
         self.BatchCount = 0
-        self.ResponseA = []
-        self.ResponseB = []
-        self.log = utils_torch.GetDefaultDict(lambda:utils_torch.EmptyPyObj())
+        self.data = utils_torch.GetDefaultDict(lambda:utils_torch.EmptyPyObj())
     def LogResponse(self, Name, ResponseA, ResponseB):
-        Data = self.log[Name]
+        Data = self.data[Name]
+        EnsureAttrs(Data, "ResponseA", default=[])
+        EnsureAttrs(Data, "ResponseB", default=[])
         ResponseA = utils_torch.ToNpArray(ResponseA)
         ResponseB = utils_torch.ToNpArray(ResponseB)
         ResponseA = ResponseA.reshape(-1, ResponseA.shape[-1])
@@ -21,15 +22,15 @@ class LogForWeightAndResponseSimilarityCorrelation:
         Data.ResponseA.append(ResponseA)
         Data.ResponseB.append(ResponseB)
     def LogWeight(self, Name, Weight):
-        Data = self.log[Name]
+        Data = self.data[Name]
         Weight = utils_torch.ToNpArray(Weight)
         Weight = utils_torch.FlattenNpArray(Weight)
         Data.Weight = Weight
     def CalculateResponseSimilarity(self):
-        for Name, Data in self.log.items():
-            Data.ResponseA = np.concatenate(self.ResponseA, axis=0)
-            Data.ResponseB = np.concatenate(self.ResponseB, axis=0)
-            Data.ResponseSimilarity = utils_torch.math.CalculatePearsonCoefficientMatrix(self.ResponseA, self.ResponseB)
+        for Name, Data in self.data.items():
+            Data.ResponseA = np.concatenate(Data.ResponseA, axis=0)
+            Data.ResponseB = np.concatenate(Data.ResponseB, axis=0)
+            Data.CorrelationMatrix = utils_torch.math.CalculatePearsonCoefficientMatrix(Data.ResponseA, Data.ResponseB)
         return
 
 class LogForWeightAndResponseSimilarityCorrelationAlongTrain:
@@ -146,102 +147,175 @@ class LogForWeightAndResponseSimilarityCorrelationAlongTrain:
 
 class AnalysisForImageClassificationTask:
     def __init__(self):
-        AddAnalysisMethods = utils_torch.EmptyPyObj()
-        AddAnalysisMethods.AnalyzePCAAndConnectivityPattern = AnalyzePCAAndConnectivityPattern
-        AddAnalysisMethods.AnalyzeConnectivityPattern = AnalyzeConnectivityPattern
-        AddAnalysisMethods.AnalyzePCA = utils_torch.analysis.AnalyzePCA
-        AddAnalysisMethods.AnalyzeResponseSimilarityAndWeightUpdateCorrelation = AnalyzeResponseSimilarityAndWeightUpdateCorrelation
-    def SaveAndLoad(self, ContextInfo):
+        AddAnalysisMethods = utils_torch.PyObj({
+            "AnalyzePCAAndConnectivityPattern": AnalyzePCAAndConnectivityPattern,
+            "AnalyzeConnectivityPattern": AnalyzeConnectivityPattern,
+            "AnalyzePCA": utils_torch.analysis.AnalyzePCA
+        })
+    def SaveAndLoad(self, ContextObj):
         GlobalParam = utils_torch.GetGlobalParam()
-        ContextInfo.setdefault("ObjRoot", GlobalParam)
-        SaveDir = utils_torch.SetSubSaveDirEpochBatch("SavedModel", ContextInfo.EpochIndex, ContextInfo.BatchIndex)
-        # GlobalParam.object.agent.ReportSelf()
-        # print(id(GlobalParam.object.agent.Modules.model.GetTrainWeight()["Recurrent.FiringRate2RecurrentInput.Weight"]))
-        # print(id(GlobalParam.object.agent.Modules.model.Modules.Recurrent.Modules.FiringRate2RecurrentInput.data.Weight))
-        #print(GlobalParam.object.agent.Modules.model.Modules.Recurrent.Modules.FiringRate2RecurrentInput.data.Weight[0][0:5])
+        ContextObj.setdefault("ObjRoot", GlobalParam)
+        SaveDir = utils_torch.SetSubSaveDirEpochBatch("SavedModel", ContextObj.EpochIndex, ContextObj.BatchIndex)
         utils_torch.DoTasks(
                 "&^param.task.Save", 
                 In={"SaveDir": SaveDir},
-                **ContextInfo.ToDict()
+                **ContextObj.ToDict()
             )
         #print(utils_torch.json.DataFile2PyObj(SaveDir + "agent.model.Recurrent.FiringRate2RecurrentInput.data").Weight[0][0:5])
         utils_torch.DoTasks(
             "&^param.task.Load",
             In={"SaveDir": SaveDir}, 
-            **ContextInfo.ToDict()
+            **ContextObj.ToDict()
         )
         # GlobalParam.object.agent.ReportSelf()
         GlobalParam = utils_torch.GetGlobalParam()
         GlobalParam.object.trainer.ParseRouters()
+        ContextObj.Trainer.agent = GlobalParam.object.agent
 
-        ContextInfo["Trainer"].agent = GlobalParam.object.agent
+    def AnalyzeAfterBatch(self, ContextObj):
+        logTest = self.AnalyzeAfterBatchTest(ContextObj.Copy())
+        logTrain = self.AnalyzeAfterBatchTrain(ContextObj.Copy())
 
-    def AnalyzeAfterBatch(self, ContextInfo):
-        self.AnalyzeTrain(utils_torch.CopyDict(ContextInfo))
-        self.AnalyzeTest(utils_torch.CopyDict(ContextInfo))
-
-    def AnalyzeTrain(self, ContextInfo):
-        EpochIndex = ContextInfo["EpochIndex"]
-        Trainer = ContextInfo["Trainer"]
+        utils_torch.AddLog("Plotting Accuracy Curve...")
+        utils_torch.analysis.PlotAccuracyEpochBatch(
+            LogTrain= logTrain.GetLogValueByName("Accuracy"),
+            LogTest = logTest.Main.GetLogValueByName("Accuracy"),
+            SaveDir = utils_torch.GetMainSaveDir() + "Performance/",
+            ContextObj=ContextObj.Copy(),
+        )
+    def AnalyzeAfterBatchTrain(self, ContextObj):
+        Trainer = ContextObj.Trainer
+        EpochIndex = ContextObj["EpochIndex"]
         #model = Trainer.agent.Modules.model
 
         if EpochIndex < 0:
             return
-        BatchIndex = ContextInfo["BatchIndex"]
-        log = utils_torch.Getlog("DataTrain")
+        BatchIndex = ContextObj["BatchIndex"]
+        log = Trainer.cache.LogTrain
+
+        agent = Trainer.agent
+        FullName = agent.Modules.model.GetFullName()
 
         utils_torch.AddLog("Plotting Loss Curve...")
         utils_torch.analysis.AnalyzeLossEpochBatch(
-            Logs=log.GetLogOfType("Loss"), **ContextInfo
+            log.GetLogOfType("Loss"),
+            SaveDir = utils_torch.GetMainSaveDir() + "Performance/",
+            ContextObj=ContextObj.Copy(),
         )
 
+        
         utils_torch.AddLog("Plotting Neural Activity...")
         utils_torch.analysis.AnalyzeTimeVaryingActivitiesEpochBatch(
             Logs=log.GetLogOfType("TimeVaryingActivity"),
+            SaveDir=utils_torch.GetMainSaveDir() + "Activity-Plot/",
+            ContextObj=ContextObj.Copy(),
+        )
+
+        utils_torch.AddLog("Plotting Activity Statistics...")
+        utils_torch.analysis.AnalyzeStatAlongTrainingEpochBatch(
+            Logs=log.GetLogOfType("TimeVaryingActivity-Stat"),
+            SaveDir=utils_torch.GetMainSaveDir() + "Activity-Stat/",
+            ContextObj=ContextObj.Copy()
         )
 
         utils_torch.AddLog("Plotting Weight...")
         utils_torch.analysis.AnalyzeWeightsEpochBatch(
-            Logs=log.GetLogOfType("Weight"),
+            Logs=log.GetLogByName(FullName + "." + "Weight"),
+            SaveDir=utils_torch.GetMainSaveDir() + "Weight-Plot/",
+            ContextObj=ContextObj.Copy()
         )
 
         utils_torch.AddLog("Plotting Weight Statistics...")
-        utils_torch.analysis.AnalyzeWeightStatAlongTrainingEpochBatch(
-            Logs=log.GetLogOfType("Weight-Stat"), **ContextInfo
+        utils_torch.analysis.AnalyzeStatAlongTrainingEpochBatch(
+            Logs=log.GetLogOfType("Weight-Stat"),
+            SaveDir=utils_torch.GetMainSaveDir() + "Weight-Stat/",
+            ContextObj=ContextObj.Copy()
         )
 
-        utils_torch.AddLog("Plotting Activity Statistics...")
+        return log
+    def AnalyzeAfterBatchTest(self, ContextObj):
+        log = EmptyPyObj()
+        log.FromPyObj(self.RunTestBatches(
+            utils_torch.PyObj(ContextObj).Update({"TestBatchNum": 10})
+        ))
+        utils_torch.analysis.PlotResponseSimilarityAndWeightCorrelation(
+            log.Correlation,
+            # CorrelationMatrix=logCorrelation.ResponseSimilarity,
+            # Weight=logCorrelation.Weight,
+            SaveDir=utils_torch.GetMainSaveDir() + "Hebb-Analysis-Test/",
+            ContextObj=ContextObj
+            #SaveName="Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
+        )
+        return
+    def RunTestBatches(self, ContextObj, MethodsAfterBatch):
+        # To Be Modified
+        GlobalParam = utils_torch.GetGlobalParam()
+        EpochIndex = ContextObj.EpochIndex
+        BatchIndex = ContextObj.BatchIndex
+        TestBatchNum = ContextObj.setdefault("TestBatchNum", 10)
 
-        utils_torch.AddLog("Analyzing ConnectionStrength - ResponseSimilarity Relationship...")
-        if log.GetLogByName("MinusGrad") is not None:
-            utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
-                ResponseA=log.GetLogByName("agent.model.FiringRates")["Value"],
-                ResponseB=log.GetLogByName("agent.model.FiringRates")["Value"],
-                WeightUpdate=log.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
-                Weight = log.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
-                SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-Recurrent/",
-                SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
+        agent = GlobalParam.object.agent
+        BatchParam = GlobalParam.param.task.Train.BatchParam
+        Dataset = GlobalParam.object.image
+        Dataset.PrepareBatches(BatchParam, "Test")    
+        
+        log = utils_torch.log.LogForEpochBatchTrain()
+        log.SetEpochIndex(0)
+        logCorrelation = LogForWeightAndResponseSimilarityCorrelation()
+        logPCA = utils_torch.analysis.LogForPCA()
+
+        logAccuracy = utils_torch.LogForAccuracyAlongTrain()
+
+        FullName = agent.Modules.model.GetFullName()
+        
+        for TestBatchIndex in range(TestBatchNum):
+            log.SetBatchIndex(TestBatchIndex)
+            utils_torch.AddLog("Epoch%d-Index%d-TestBatchIndex-%d"%(EpochIndex, BatchIndex, TestBatchIndex))
+            InList = utils_torch.parse.ParsePyObjDynamic(
+                utils_torch.PyObj([
+                    "&^param.task.Train.BatchParam",
+                    "&^param.task.Train.OptimizeParam",
+                    #"&^param.task.Train.NotifyEpochBatchList"
+                    log,
+                ]),
+                ObjRoot=GlobalParam,
             )
-        return
+            utils_torch.CallGraph(agent.Dynamics.TestBatchRandom, InList=InList)
+            
+            # Log Response and Weight Pairs
+            for Name, Pair in agent.Modules.model.param.Analyze.ResponseAndWeightPairs.Items():
+                logCorrelation.LogResponse(
+                    Name,
+                    log.GetLogValueByName(FullName + "." + Pair.ResponseA),
+                    log.GetLogValueByName(FullName + "." + Pair.ResponseB),
+                )
 
-    def AnalyzeTest(self, ContextInfo):
-        EpochIndex = ContextInfo.EpochIndex
-        BatchIndex = ContextInfo.BatchIndex
-        Trainer = ContextInfo.Trainer
-        #log = Trainer.Modules.LogTrain
-        #log.SetEpochIndex(EpochIndex)
-        #log.SetBatchIndex(BatchIndex)
-        _logCorrelation = _AnalyzeConnectivityPattern(
-            utils_torch.PyObj(ContextInfo).Update({"TestBatchNum", 10})
-        )
-        utils_torch.analysis.PlotResponseSimilarityAndWeightUpdateCorrelation(
-            CorrelationMatrix=_logCorrelation.ResponseSimilarity,
-            Weight=_logCorrelation.Weight,
-            SaveDir=utils_torch.GetMainSaveDir() + "Hebb-Analysis-Recurrent-Test/",
-            SaveName="Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
-        )
-        return
+            # Log for PCA Analysis
+            for Name, DataName in agent.Modules.model.param.Analyze.PCA.Items():
+                logPCA.Log(
+                    Name, log.GetLogValueByName(FullName + "." + DataName),
+                )
 
+        # Calculate Accuracy
+        self.CalculateAccuracyForLog(
+            log.GetLogByName("Accuracy"),
+            ContextObj,
+        )
+
+        # Calculate ResponseSimilarity
+        logCorrelation.CalculateResponseSimilarity()
+        for Name, Pair in agent.Modules.model.param.Analyze.ResponseAndWeightPairs.Items():
+            logCorrelation.LogWeight(Name, log.GetLogValueByName(FullName + "." + "Weight")[Pair.Weight])
+        
+        # Calculate PCA
+
+        
+        return utils_torch.PyObj({
+                "Correlation": logCorrelation,
+                "PCA": logPCA,
+                "Main": log,
+            })
+            
     def AddAnalysis(self):
         GlobalParam = utils_torch.GetGlobalParam()
         TaskName = GlobalParam.CmdArgs.TaskName2
@@ -252,19 +326,44 @@ class AnalysisForImageClassificationTask:
         else: # To be implemented. Specify from file
             raise Exception()
     def AnalyzeBeforeTrain(self, ContextInfo):
-        self.AnalyzeTest(ContextInfo)
+        self.AnalyzeAfterBatchTest(ContextInfo)
         Trainer = ContextInfo.Trainer
-        Trainer.data.log.AccuracyAlongTraining = []
-        Trainer.cache.log.AccuracyAlongTraining = utils_torch.log.LogForAccuracyAlongTraining()
+        # Trainer.Modules.LogTrain.AccuracyAlongTraining = []
+        # Trainer.cache.log.AccuracyAlongTraining = utils_torch.log.LogForAccuracyAlongTrain()
     def AnalyzeAfterTrain(self):
         AnalyzeConnectivityPattern()
         return
-    def AnalyzeAfterEveryBatch(self, ContextInfo):
-        self.LogAccuracyAlongTraining(dict(ContextInfo))
-    def LogAccuracyAlongTraining(self, ContextInfo):
+    def AnalyzeAfterEveryBatch(self, ContextObj):
+        self.CalculateRecentAccuracyForLog(
+            ContextObj.Trainer.cahce.LogTrain.GetLogByName("Accuracy"),
+            ContextObj,
+        )
+        return
+    def CalculateAccuracyForLog(self, Log, ContextInfo):
+        SampleNumTotal = sum(Log["SampleNumTotal"])
+        SampleNumCorrect = sum(Log["SampleNumCorrect"])
+        Log["CorrectRate"].append(1.0 * SampleNumCorrect / SampleNumTotal)
+    def CalculateRecentAccuracyForLog(self, Log, ContextInfo, BatchNumMerge = 5):
         Trainer = ContextInfo.Trainer
-        AccuracyRate = Trainer.cache.log.AccuracyAlongTraining.Update(ContextInfo.log.Train)
-        Trainer.data.log.AccuracyAlongTraining.append(AccuracyRate)
+        #Accuracy = Trainer.cache.LogTrain.GetLogByName("Accuracy")
+        # "Accuracy":{
+        #     "SampleNumTotal": [...],
+        #     "SampleNumCorrect": [...],
+        #     "EpochIndex": [...],
+        #     "BatchIndex": [...]
+        # }
+        Accuracy = Log
+
+        BatchNumTotal = len(Log["SampleNumTotal"])
+        
+        if BatchNumTotal < BatchNumMerge:
+            BatchStartIndex = 0
+        else:
+            BatchStartIndex = - BatchNumMerge
+        SampleNumTotal = sum(Log["SampleNumTotal"][BatchStartIndex:])
+        SampleNumCorrect = sum(Log["SampleNumCorrect"][BatchStartIndex:])
+        
+        Log["CorrectRate"].append(1.0 * SampleNumCorrect / SampleNumTotal)
 
 def AnalyzeConnectivityPattern(*Args, **kw):
     TestBatchNum = kw.setdefault("TestBatchNum", 10)
@@ -312,7 +411,7 @@ def AnalyzeConnectivityPattern(*Args, **kw):
             "&^param.task.BuildTrainer", **kw
         )
         
-        _logCorrelation = _AnalyzeConnectivityPattern(
+        _logCorrelation = CalculateConnectivityPattern(
             EpochIndex=EpochIndex, BatchIndex=BatchIndex, log=log, TestBatchNum=TestBatchNum
         )
 
@@ -335,7 +434,7 @@ def AnalyzeConnectivityPattern(*Args, **kw):
         PlotNum=100, SaveDir=AnalysisSaveDir, SaveName="Recurrent.FiringRate2Output.Weight"
     )
 
-def _AnalyzeConnectivityPattern(ContextInfo):
+def CalculateConnectivityPattern(ContextInfo):
     GlobalParam = utils_torch.GetGlobalParam()
     EpochIndex = ContextInfo.EpochIndex
     BatchIndex = ContextInfo.BatchIndex
@@ -347,10 +446,11 @@ def _AnalyzeConnectivityPattern(ContextInfo):
     Dataset = GlobalParam.object.image
     Dataset.PrepareBatches(BatchParam, "Test")    
     
-
     log = utils_torch.log.LogForEpochBatchTrain()
     log.SetEpochIndex(0)
-    _logCorrelation = LogForWeightAndResponseSimilarityCorrelation()
+    logCorrelation = LogForWeightAndResponseSimilarityCorrelation()
+    FullName = agent.Modules.model.GetFullName()
+    
     for TestBatchIndex in range(TestBatchNum):
         log.SetBatchIndex(TestBatchIndex)
         utils_torch.AddLog("Epoch%d-Index%d-TestBatchIndex-%d"%(EpochIndex, BatchIndex, TestBatchIndex))
@@ -364,17 +464,16 @@ def _AnalyzeConnectivityPattern(ContextInfo):
             ObjRoot=GlobalParam,
         )
         utils_torch.CallGraph(agent.Dynamics.TestBatchRandom, InList=InList)
-
-        for Name, Pair in agent.Modules.model.param.ResponseAndWeightPairs.Items():
-            _logCorrelation.LogResponse(
+        for Name, Pair in agent.Modules.model.param.Analyze.ResponseAndWeightPairs.Items():
+            logCorrelation.LogResponse(
                 Name,
-                log.GetLogByName(Pair.ResponseA)["Value"],
-                log.GetLogByName(Pair.ResposneB)["Value"],
+                log.GetLogValueByName(FullName + "." + Pair.ResponseA),
+                log.GetLogValueByName(FullName + "." + Pair.ResponseB),
             )
-    _logCorrelation.CalculateResponseSimilarity()
-    for Name, Pair in agent.Modules.model.param.ResponseAndWeightPairs.Items():
-        _logCorrelation.LogWeight(log.GetLogByName("Weight")["Value"][Pair.Weight])
-    return _logCorrelation
+    logCorrelation.CalculateResponseSimilarity()
+    for Name, Pair in agent.Modules.model.param.Analyze.ResponseAndWeightPairs.Items():
+        logCorrelation.LogWeight(Name, log.GetLogValueByName(FullName + "." + "Weight")[Pair.Weight])
+    return logCorrelation
 
 def AnalyzePCAAndConnectivityPattern(*Args, **kw):
     TestBatchNum = kw.setdefault("TestBatchNum", 10)
@@ -398,7 +497,7 @@ def AnalyzePCAAndConnectivityPattern(*Args, **kw):
     Data = []
     for SaveDir in SaveDirs:
         EpochIndex, BatchIndex = utils_torch.train.ParseEpochBatchFromStr(SaveDir)
-        CacheSavePath = utils_torch.GetMainSaveDir() + "Hebb-Analysis-Along-Learning-Test/"\
+        CacheSavePath = utils_torch.GetMainSaveDir() + "Hebb-Analysis-Test/"\
             + "cache/" + "Epoch%d-Batch%d.data"%(EpochIndex, BatchIndex)
         assert utils_torch.ExistsFile(CacheSavePath)
         DataConnectivityPattern = utils_torch.json.DataFile2PyObj(CacheSavePath)
@@ -442,57 +541,57 @@ def AnalyzePCAAndConnectivityPattern(*Args, **kw):
     utils_torch.plot.SaveFigForPlt(SavePath=utils_torch.GetMainSaveDir() + "PCA-Hebb/" + "Hebb-PCA.svg")
     return
 
-def AnalyzeResponseSimilarityAndWeightUpdateCorrelation(*Args, **kw):
-    # Do supplementary analysis for all saved models under main save directory.
-    kw.setdefault("ObjRoot", utils_torch.GetGlobalParam())
+# def AnalyzeResponseSimilarityAndWeightUpdateCorrelation(*Args, **kw):
+#     # Do supplementary analysis for all saved models under main save directory.
+#     kw.setdefault("ObjRoot", utils_torch.GetGlobalParam())
     
-    utils_torch.DoTasks( # Dataset can be reused.
-        "&^param.task.BuildDataset", **kw
-    )
+#     utils_torch.DoTasks( # Dataset can be reused.
+#         "&^param.task.BuildDataset", **kw
+#     )
 
-    SaveDirs = utils_torch.GetAllSubSaveDirsEpochBatch("SavedModel")
-    for SaveDir in SaveDirs:
-        EpochIndex, BatchIndex = utils_torch.train.ParseEpochBatchFromStr(SaveDir)
-        utils_torch.AddLog("Testing Model at Epoch%d-Batch%d"%(EpochIndex, BatchIndex))
-        log = utils_torch.Getlog("DataTest")
-        log.SetEpochIndex(EpochIndex)
-        log.SetBatchIndex(BatchIndex)
+#     SaveDirs = utils_torch.GetAllSubSaveDirsEpochBatch("SavedModel")
+#     for SaveDir in SaveDirs:
+#         EpochIndex, BatchIndex = utils_torch.train.ParseEpochBatchFromStr(SaveDir)
+#         utils_torch.AddLog("Testing Model at Epoch%d-Batch%d"%(EpochIndex, BatchIndex))
+#         log = utils_torch.Getlog("DataTest")
+#         log.SetEpochIndex(EpochIndex)
+#         log.SetBatchIndex(BatchIndex)
 
-        utils_torch.DoTasks(
-            "&^param.task.Load",
-            In={"SaveDir": SaveDir}, 
-            **kw
-        )
-        utils_torch.DoTasks(
-            "&^param.task.BuildTrainer", **kw
-        )
-        GlobalParam = utils_torch.GetGlobalParam()
-        Trainer = GlobalParam.object.trainer
+#         utils_torch.DoTasks(
+#             "&^param.task.Load",
+#             In={"SaveDir": SaveDir}, 
+#             **kw
+#         )
+#         utils_torch.DoTasks(
+#             "&^param.task.BuildTrainer", **kw
+#         )
+#         GlobalParam = utils_torch.GetGlobalParam()
+#         Trainer = GlobalParam.object.trainer
 
-        InList = utils_torch.parse.ParsePyObjDynamic(
-            utils_torch.PyObj([
-                "&^param.task.Train.BatchParam",
-                "&^param.task.Train.OptimizeParam",
-                "&^param.task.Train.NotifyEpochBatchList"
-            ]),
-            ObjRoot=GlobalParam
-        )
-        utils_torch.CallGraph(Trainer.Dynamics.TestEpoch, InList=InList)
+#         InList = utils_torch.parse.ParsePyObjDynamic(
+#             utils_torch.PyObj([
+#                 "&^param.task.Train.BatchParam",
+#                 "&^param.task.Train.OptimizeParam",
+#                 "&^param.task.Train.NotifyEpochBatchList"
+#             ]),
+#             ObjRoot=GlobalParam
+#         )
+#         utils_torch.CallGraph(Trainer.Dynamics.TestEpoch, InList=InList)
 
-        utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
-            ResponseA=log.GetLogByName("agent.model.FiringRates")["Value"],
-            ResponseB=log.GetLogByName("agent.model.Outputs")["Value"],
-            WeightUpdate=log.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2Output.Weight"],
-            Weight = log.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2Output.Weight"],
-            SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-1/" + "Recurrent.FiringRate2Output/",
-            SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2Output.Weight"%(EpochIndex, BatchIndex),
-        )
+#         utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
+#             ResponseA=log.GetLogByName("agent.model.FiringRates")["Value"],
+#             ResponseB=log.GetLogByName("agent.model.Outputs")["Value"],
+#             WeightUpdate=log.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2Output.Weight"],
+#             Weight = log.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2Output.Weight"],
+#             SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-1/" + "Recurrent.FiringRate2Output/",
+#             SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2Output.Weight"%(EpochIndex, BatchIndex),
+#         )
 
-        utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
-            ResponseA=log.GetLogByName("agent.model.FiringRates")["Value"],
-            ResponseB=log.GetLogByName("agent.model.FiringRates")["Value"],
-            WeightUpdate=log.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
-            Weight = log.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
-            SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-2/" + "Recurrent.FiringRate2RecurrentInput/",
-            SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
-        )
+#         utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
+#             ResponseA=log.GetLogByName("agent.model.FiringRates")["Value"],
+#             ResponseB=log.GetLogByName("agent.model.FiringRates")["Value"],
+#             WeightUpdate=log.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
+#             Weight = log.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
+#             SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-2/" + "Recurrent.FiringRate2RecurrentInput/",
+#             SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
+#         )
