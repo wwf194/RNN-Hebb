@@ -28,7 +28,7 @@ def ParseCmdArgs():
 
     # parser.add_argument("-tn2", "--TaskName2", dest="TaskName2", default="AnalyzeConnectivityPattern")
     # parser.add_argument("-tn2", "--TaskName2", dest="TaskName2", default="AnalyzePCA")
-    parser.add_argument("-tn2", "--TaskName2", dest="TaskName2", default="AnalyzePCAAndConnectivityPattern")
+    parser.add_argument("-tn2", "--TaskName2", dest="TaskName2", default="AnalyzePCAAndResponseWeightCorrelation")
     
     CmdArgs = parser.parse_args()
     return CmdArgs

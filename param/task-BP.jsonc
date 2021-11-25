@@ -176,15 +176,13 @@
             "Dampening": 0.0, 
             "Nesterov": false,
         },
-        "NotifyEpochBatchList":[
-            "&^log.DataTrain"
-        ],
+        "NotifyEpochBatchList":[],
         "__Tasks__":[
             {
                 "FunctionCall": [
                     [
                         "&^object.trainer.Train",
-                        ["&^object.agent", "&^object.images", "&~Epoch.Num", "&~BatchParam", "&~OptimizeParam", "&~NotifyEpochBatchList"],
+                        ["&^object.agent", "&^object.image", "&~Epoch.Num", "&~BatchParam", "&~OptimizeParam", "&~NotifyEpochBatchList"],
                     ]
                 ],
             },

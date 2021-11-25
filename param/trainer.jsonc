@@ -18,14 +18,14 @@
             // "Epoch.Num": "$Epoch.Num",
             // "Batch.Num": "$Batch.Num",
             "CalculateCheckPointMode": "Always",
-            "Method": "&~*cache.analyzer.AnalyzeAfterEveryBatch"
+            "Method": "&~*cache.analyzer.AfterEveryBatch"
         },
         "CheckPointAnalyze2":{
             "Type": "CheckPointForEpochBatchTraining",
             // "Epoch.Num": "$Epoch.Num",
             // "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
-            "Method": "&~*cache.analyzer.AnalyzeAfterBatch"
+            "Method": "&~*cache.analyzer.AfterBatch"
         },
         "AnalyzeAfterBatch":{
             "Type": "External"

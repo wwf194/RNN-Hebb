@@ -27,12 +27,18 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
         if hasattr(cache.analyzer, "AnalyzeBeforeTrain"):
             analyzer.AnalyzeBeforeTrain(self.GenerateContextInfo())
         self.ClearEpoch()
+    def GetBatchParam(self):
+        return self.BatchParam
+    def GetOptimizeParam(self):
+        return self.OptimizeParam
     def Train(self, agent, world, EpochNum, BatchParam, OptimizeParam, NotifyEpochBatchList):
         cache = self.cache
         data = self.data
         self.SetEpochNum(EpochNum)
         self.agent = agent
         self.world = world
+        self.BatchParam = BatchParam
+        self.OptimizeParam = OptimizeParam
         BatchNum = utils_torch.functions.Call(
             self.agent.Dynamics.TrainEpochInit,
             BatchParam, OptimizeParam, cache.LogTrain,

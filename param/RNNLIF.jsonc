@@ -241,8 +241,8 @@
         "Optimize":{
             "In": ["outputs", "outputTarget", "activity", "trainParam", "IsTest", "log"],
             "Routings":[
-                "outputs |--> &GetLastOutput |--> output",
-                "output, outputTarget |--> &PredictionLoss                 |--> mainLoss",
+                "outputs |--> &GetLastOutput |--> outputLast",
+                "outputLast, outputTarget |--> &PredictionLoss                 |--> mainLoss",
                 "activity, mainLoss   |--> &CalculateActivityConstrainLoss |--> activityConstrainLoss",
                 "mainLoss |--> &CalculateWeightConstrainLoss |--> weightConstrainLoss",
                 "mainLoss, activityConstrainLoss, weightConstrainLoss |--> &Add |--> totalLoss",
@@ -261,7 +261,7 @@
                 "mainLoss,              Name=MainLoss,              log=%log |--> &LogLoss",
                 "activityConstrainLoss, Name=ActivityConstrainLoss, log=%log |--> &LogLoss",
                 "weightConstrainLoss,   Name=WeightConstrainLoss,   log=%log |--> &LogLoss",
-                "output                 |--> &Probability2MostProbableIndex  |--> outputPredicted",
+                "outputLast             |--> &Probability2MostProbableIndex  |--> outputPredicted",
                 "outputPredicted,       outputTarget,               log=%log |--> &LogAccuracyForSingleClassPrediction"
             ]
         },
@@ -320,11 +320,13 @@
         },
         "LogActivity":{
             "Routings":[
+                "outputs |--> &GetLastOutput |--> outputLast",
                 "recurrentInputs,    Name=RecurrentInputs,    Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "membranePotentials, Name=MembranePotentials, Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "firingRates,        Name=FiringRates,        Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "outputs,            Name=Outputs,            Type=TimeVaryingActivity, log=%log |--> &LogCache",
-                //"outputTarget,       Name=OutputTarget,       Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "outputLast,         Name=OutputLast,         Type=Activity,            log=%log |--> &LogCache",
+                //"outputTarget,     Name=OutputTarget,       Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "inputs,             Name=Inputs,             Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "inputTransformed,   Name=InputTransformed,   Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "recurrentInputs,    Name=RecurrentInputs,    Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
@@ -364,5 +366,8 @@
                 "Weight": "InputTransform.Weight",
             }
         },
+        "PCA":[
+            "OutputLast"
+        ],
     },
 }
