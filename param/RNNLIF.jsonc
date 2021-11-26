@@ -252,7 +252,7 @@
                 "trainWeight,    trainParam,      Update=%IsTest      |--> &GradientDescend |--> MinusGrad",
                 "Name=MinusGrad, data=%MinusGrad, Type=Grad, log=%log |--> &LogCache",
 
-                "&LogPerformance || InheritStates=True"
+                "&LogPerformance || InheritStates"
             ],
         },
         "LogPerformance":{
