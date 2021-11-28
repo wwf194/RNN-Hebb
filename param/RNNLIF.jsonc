@@ -128,7 +128,7 @@
             "Type": "Lambda",
             "Lambda": "lambda data: [data[:, :($Neurons.Recurrent.Num)], data[:, ($Neurons.Recurrent.Num):]]"
         },
-        "GetLastOutput":{
+        "GetLast":{
             "Type": "Lambda",
             "Lambda": "lambda output: output[:, -1, :]"
         },
@@ -320,10 +320,12 @@
         },
         "LogActivity":{
             "Routings":[
-                "outputs |--> &GetLastOutput |--> outputLast",
+                "outputs    |--> &GetLast |--> outputLast",
+                "firingRate |--> &GetLast |--> firingRatesLast",
                 "recurrentInputs,    Name=RecurrentInputs,    Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "membranePotentials, Name=MembranePotentials, Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "firingRates,        Name=FiringRates,        Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "firingRatesLast,    Name=FiringRatesLast,    Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "outputs,            Name=Outputs,            Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "outputLast,         Name=OutputLast,         Type=Activity,            log=%log |--> &LogCache",
                 //"outputTarget,     Name=OutputTarget,       Type=TimeVaryingActivity, log=%log |--> &LogCache",
@@ -367,7 +369,7 @@
             }
         },
         "PCA":[
-            "OutputLast"
+            "OutputLast", "FiringRatesLast"
         ],
     },
 }

@@ -1,5 +1,5 @@
 import utils_torch
-import Analyze
+import Tasks
 class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
     def __init__(self, param, **kw):
         super().__init__(param, **kw)
@@ -12,9 +12,9 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
         utils_torch.parse.ParsePyObjStatic(param)
         task = param.Task
         if "CIFAR10" in task:
-            cache.analyzer = Analyze.AnalysisForImageClassificationTask()
+            cache.analyzer = Tasks.AnalysisForImageClassificationTask()
         elif "MNIST" in task:
-            cache.analyzer = Analyze.AnalysisForImageClassificationTask()
+            cache.analyzer = Tasks.AnalysisForImageClassificationTask()
         else:
             raise Exception(task)
     def BeforeTrain(self):
@@ -24,13 +24,26 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
         self.SetBatchIndex(cache.BatchNum - 1)
         if hasattr(cache.analyzer, "SaveAndLoad"):
             analyzer.SaveAndLoad(self.GenerateContextInfo())
-        if hasattr(cache.analyzer, "AnalyzeBeforeTrain"):
-            analyzer.AnalyzeBeforeTrain(self.GenerateContextInfo())
+        if hasattr(cache.analyzer, "BeforeTrain"):
+            analyzer.BeforeTrain(self.GenerateContextInfo())
         self.ClearEpoch()
+    def AfterTrain(self):
+        cache = self.cache
+        analyzer = cache.analyzer
+        if hasattr(analyzer, "AfterTrain"):
+            analyzer.AfterTrain(
+                self.GenerateContextInfo().FromDict({
+                    "EpochIndex": -2, "BatchIndex": 0
+                })
+            )
     def GetBatchParam(self):
         return self.BatchParam
     def GetOptimizeParam(self):
         return self.OptimizeParam
+    def GetWorld(self):
+        return self.world
+    def GetAgent(self):
+        return self.agent
     def Train(self, agent, world, EpochNum, BatchParam, OptimizeParam, NotifyEpochBatchList):
         cache = self.cache
         data = self.data
@@ -52,6 +65,7 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
             self.SetEpochIndex(EpochIndex)
             self.NotifyEpochIndex()
             self.TrainEpoch(BatchParam, OptimizeParam)
+        self.AfterTrain()
     def TrainEpoch(self, BatchParam, OptimizeParam):
         cache = self.cache
         self.ClearBatch()

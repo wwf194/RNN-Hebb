@@ -5,14 +5,23 @@ from collections import defaultdict
 
 import utils_torch
 from utils_torch.attrs import *
-from utils_torch.json import EmptyPyObj
 
-class LogForWeightAndResponseSimilarityCorrelation:
-    def __init__(self):
+class LogForResponseSimilarityAndWeightCorrelation:
+    def __init__(self, EpochIndex=None, BatchIndex=None):
         self.BatchCount = 0
-        self.data = utils_torch.GetDefaultDict(lambda:utils_torch.EmptyPyObj())
+        data = self.data = utils_torch.EmptyPyObj()
+        self.log = data.log = utils_torch.GetDefaultDict(lambda:utils_torch.EmptyPyObj())
+        if EpochIndex is not None:
+            data.EpochIndex = EpochIndex
+        if BatchIndex is not None:
+            data.BatchIndex = BatchIndex
+        data.status = "Initialized"
+    def FromFile(self, FilePath):
+        self.data = utils_torch.files.DataFile2PyObj(FilePath)
+        self.log = self.data.log
+        return self
     def LogBatch(self, Name, ResponseA, ResponseB):
-        Data = self.data[Name]
+        Data = self.log[Name]
         EnsureAttrs(Data, "ResponseA", default=[])
         EnsureAttrs(Data, "ResponseB", default=[])
         ResponseA = utils_torch.ToNpArray(ResponseA)
@@ -22,25 +31,93 @@ class LogForWeightAndResponseSimilarityCorrelation:
         Data.ResponseA.append(ResponseA)
         Data.ResponseB.append(ResponseB)
     def LogWeight(self, Name, Weight):
-        Data = self.data[Name]
+        Data = self.log[Name]
         Weight = utils_torch.ToNpArray(Weight)
         Weight = utils_torch.FlattenNpArray(Weight)
         Data.Weight = Weight
-    def CalculateResponseSimilarity(self):
-        for Name, Data in self.data.items():
+    def Analyze(self):
+        for Name, Data in self.log.items():
             Data.ResponseA = np.concatenate(Data.ResponseA, axis=0)
             Data.ResponseB = np.concatenate(Data.ResponseB, axis=0)
             Data.CorrelationMatrix = utils_torch.math.CalculatePearsonCoefficientMatrix(Data.ResponseA, Data.ResponseB)
+            # Correlation of CorrelationMatrix and WeightMatrix. "Correlation of Correlation"
+            Data.CorrelationCoefficient = utils_torch.math.CalculatePearsonCoefficient(Data.CorrelationMatrix, Data.Weight)
+        self.data.status = "Analyzed"
+        return
+    def Plot(self, SaveDir, ContextObj):
+        assert self.data.status in ["Analyzed"]
+        for Name, Data in self.log.items():
+            self.PlotItem(
+                Data.CorrelationMatrix, Data.Weight, 
+                SaveDir=SaveDir + Name + "/" + "Epoch%d-Batch%d/"%(ContextObj.EpochIndex, ContextObj.BatchIndex),
+                SaveName="Weight~ResponseSimilarity"
+            )
+    def PlotItem(self, CorrelationMatrix, Weight, SaveDir, SaveName):
+        # Scatter Plot and Binned Meand and Std.
+        fig, axes = utils_torch.plot.CreateFigurePlt(2, Size="Medium")
+        
+        CorrelationMatrixFlat = utils_torch.EnsureFlat(CorrelationMatrix)
+        WeightFlat = utils_torch.EnsureFlat(Weight)
+        
+        ax = utils_torch.plot.GetAx(axes, 0)
+        
+        XYs = np.stack(
+            [
+                CorrelationMatrixFlat,
+                WeightFlat,
+            ],
+            axis=1
+        ) # [NeuronNumA * NeuronNumB, (Correlation, Weight)]
+
+        Title = "Weight - ResponseSimilarity"
+        utils_torch.plot.PlotPoints(
+            ax, XYs, Color="Blue", Type="EmptyCircle", Size=0.5,
+            XLabel="Response Similarity", YLabel="Connection Strength", 
+            Title=Title,
+        )
+
+        ax = utils_torch.plot.GetAx(axes, 1)
+        BinStats = utils_torch.math.CalculateBinnedMeanAndStd(CorrelationMatrixFlat, WeightFlat)
+        
+        utils_torch.plot.PlotMeanAndStdCurve(
+            ax, BinStats.BinCenters, BinStats.Mean, BinStats.Std,
+            XLabel = "Response Similarity", YLabel="Connection Strength", Title="Weight - Response Similarity Binned Mean And Std",
+        )
+        
+        plt.suptitle(SaveName)
+        plt.tight_layout()
+        # Scatter plot points num might be very large, so saving in .svg might cause unsmoothness when viewing.
+        utils_torch.plot.SaveFigForPlt(SavePath=SaveDir + SaveName + "-Weight-Response-Similarity.png")
         return
 
-class LogForWeightAndResponseSimilarityCorrelationAlongTrain:
+utils_torch.module.SetMethodForLogClass(LogForResponseSimilarityAndWeightCorrelation, SaveDataOnly=True)        
+
+class LogForResponseSimilarityAndWeightCorrelationAlongTrain:
     def __init__(self, EpochNum, BatchNum):
         #ConnectivityPattern = utils_torch.EmptyPyObj()
-        self.EpochNum = EpochNum
-        self.BatchNum = BatchNum
-        self.Data = utils_torch.GetDefaultDict(lambda:[])
+        self.data = utils_torch.EmptyPyObj()
+        self.data.EpochNum = EpochNum
+        self.data.BatchNum = BatchNum
+        self.data.log = utils_torch.GetDefaultDict(lambda:[])
+        self.log = self.data.log
+    def LogBatches(self, Logs):
+        for Log in Logs:
+            self.LogBatch(Log)
+    def LogBatch(self, Log, EpochIndex=None, BatchIndex=None):
+        if EpochIndex is None:
+            EpochIndex = Log.GetEpochIndex()
+        if BatchIndex is None:
+            BatchIndex = Log.GetBatchIndex()
+        for Name, Item in Log.log.items():
+            self.log[Name].append(
+                Item.Copy().RemoveAttrsIfExist("Epoch", "Batch").FromDict({
+                    "Epoch": EpochIndex,
+                    "Batch": BatchIndex,
+                    "EpochFloat": EpochIndex + BatchIndex * 1.0 / self.data.BatchNum
+                })
+            )
     def Log(self, Name, EpochIndex, BatchIndex, ResponseSimilarity, ConnectionStrength, CorrelationCoefficient):
-        self.Data[Name].append(utils_torch.PyObj({
+        self.log[Name].append(utils_torch.PyObj({
             "EpochIndex": EpochIndex, 
             "BatchIndex": BatchIndex, 
             "ResponseSimilarity": ResponseSimilarity,
@@ -48,57 +125,64 @@ class LogForWeightAndResponseSimilarityCorrelationAlongTrain:
             "CorrelationCoefficient": CorrelationCoefficient
         }))
         return self
-    def Plot(self, PlotNum=100, SaveDir=None):
-        for Name in self.Data.keys():
-            self._Plot(Name, PlotNum, SaveDir, Name)
-    def _Plot(self, Name, PlotNum, SaveDir, SaveName):
-        BatchNum = self.BatchNum
-        Data = self.Data[Name]
-        Data.sort(key=lambda Item:Item.EpochIndex + Item.BatchIndex * 1.0 / BatchNum)
-        Data = self.Data
-        LogNum = len(Data)
-        SampleNum = Data[0].ResponseSimilarity.size
+    def Plot(self, PlotNum=100, SaveDir=None, ContextObj=None):
+        for Name, Item in self.log.items():
+            self.PlotItem(
+                Item, PlotNum, 
+                SaveDir=SaveDir + Name + "/" + "Epoch%d-Batch%d/"%(ContextObj.EpochIndex, ContextObj.BatchIndex),
+                SaveName=Name,
+            )
+    def PlotItem(self, Data, PlotNum, SaveDir, SaveName):
+        self.PlotGIF(Data, PlotNum, SaveDir, SaveName)
+        self.PlotCorrelationCoefficientAndEpoch(Data, SaveDir, SaveName)
+    def PlotCorrelationCoefficientAndEpoch(self, Data, SaveDir, SaveName):
+        EpochFloats = []
+        CorrelationCoefficients = []
+        for _Data in Data:
+            CorrelationCoefficients.append(_Data.CorrelationCoefficient)
+            EpochFloats.append(_Data.EpochFloat)
+        fig, ax = utils_torch.plot.CreateFigurePlt(1)
+        utils_torch.plot.PlotLineChart(
+            ax, EpochFloats, CorrelationCoefficients,
+            XLabel="Epochs", YLabel="CorrelationCoefficient of Weight~ResponseSimilarity",
+            Title="CorrelationCoefficient between Weight~ResponseSimilarity - Training Process"
+        )
+        utils_torch.plot.SaveFigForPlt(SavePath=SaveDir + SaveName + "-CorrelationCoefficient~Epochs.svg")
+        return
+    def PlotGIF(self, Data, PlotNum, SaveDir, SaveName):
+        utils_torch.SortListByCmpMethod(Data, utils_torch.train.CmpEpochBatchDict)
+        #Data.sort(key=lambda Item:Item.EpochIndex + Item.BatchIndex * 1.0 / BatchNum)
+        SampleNum = Data[0].CorrelationMatrix.size
         
         PlotIndices = utils_torch.RandomSelect(range(SampleNum), PlotNum)
         PlotNum = len(PlotIndices)
 
         EpochFloats = []
-        CorrelationCoefficients = []
         for _Data in Data:
-            EpochFloats.append(_Data.EpochIndex + _Data.BatchIndex * 1.0 / BatchNum)
-            CorrelationCoefficients.append(_Data.CorrelationCoefficient)
-        fig, ax = utils_torch.plot.CreateFigurePlt(1)
-        utils_torch.plot.PlotLineChart(
-            ax, EpochFloats, CorrelationCoefficients,
-            XLabel="Epochs", YLabel="CorrelationCoefficient of Weight~ResponseSimilarity",
-            Title="CorrelationCoefficient of Weight~ResponseSimilarity - Training Process"
-        )
-        utils_torch.plot.SaveFigForPlt(SavePath=SaveDir + "CorrelationCoefficient-Epochs.svg")
-        
+            EpochFloats.append(_Data.EpochFloat)
         YMins, YMaxs = [], []
         XMins, XMaxs = [], []
         for _Data in Data:
-            ConnectionStrength = _Data.ConnectionStrength
-            ResponseSimilarity = _Data.ResponseSimilarity
-            XMin, XMax = np.nanmin(ResponseSimilarity), np.nanmax(ResponseSimilarity)
+            ConnectionStrength = _Data.Weight
+            CorrelationMatrix = _Data.CorrelationMatrix
+            XMin, XMax = np.nanmin(CorrelationMatrix), np.nanmax(CorrelationMatrix)
             YMin, YMax = np.nanmin(ConnectionStrength), np.nanmax(ConnectionStrength) 
             XMins.append(XMin)
             XMaxs.append(XMax)
             YMins.append(YMin)
             YMaxs.append(YMax)
         XMin, XMax, YMin, YMax = min(XMins), max(XMaxs), min(YMins), max(YMaxs)
-        
+
         ImagePaths, ImagePathsNoArrow = [], []
         for Index, _Data in enumerate(Data):
-            EpochIndex = _Data.EpochIndex
-            BatchIndex = _Data.BatchIndex
+            EpochIndex, BatchIndex = utils_torch.train.GetEpochBatchIndexFromPyObj(_Data)
 
             Title = "Weight - ResponseSimilarity : Epoch%d-Batch%d"%(EpochIndex, BatchIndex)
-            ResponseSimilarity = utils_torch.EnsureFlatNp(_Data.ResponseSimilarity)
-            ConnectionStrength = utils_torch.EnsureFlatNp(_Data.ConnectionStrength)
+            CorrelationMatrix = utils_torch.EnsureFlatNp(_Data.CorrelationMatrix)
+            ConnectionStrength = utils_torch.EnsureFlatNp(_Data.Weight)
             XYs = np.stack(
                 [
-                    ResponseSimilarity[PlotIndices],
+                    CorrelationMatrix[PlotIndices],
                     ConnectionStrength[PlotIndices],
                 ],
                 axis=1
@@ -144,11 +228,13 @@ class LogForWeightAndResponseSimilarityCorrelationAlongTrain:
             SavePath=SaveDir + SaveName + ".gif"
         )
 
+        utils_torch.files.RemoveFiles(ImagePaths)
+
 class AnalysisForImageClassificationTask:
     def __init__(self):
         AddAnalysisMethods = utils_torch.PyObj({
             "AnalyzePCAAndResponseWeightCorrelation": AnalyzePCAAndResponseWeightCorrelation,
-            "AnalyzeResponseSimilarityAndWeightCorrelation": AnalyzeResponseSimilarityAndWeightCorrelation,
+            "PlotResponseSimilarityAndWeightCorrelation": PlotResponseSimilarityAndWeightCorrelationAlongTrain,
             "AnalyzePCA": utils_torch.analysis.AnalyzePCAForEpochBatchTrain
         })
     def SaveAndLoad(self, ContextObj):
@@ -175,30 +261,41 @@ class AnalysisForImageClassificationTask:
         logTest  = self.AfterBatchTest(ContextObj.Copy())
         logTrain = self.AfterBatchTrain(ContextObj.Copy())
 
-        utils_torch.AddLog("Plotting Accuracy Curve...")
+        utils_torch.AddLog("Plotting Accuracy Along Train...")
         utils_torch.analysis.PlotAccuracyEpochBatch(
             LogTrain = logTrain.GetLogValueByName("Accuracy"),
             LogTest  = ContextObj.Trainer.Modules.LogTest.GetLogValueByName("Accuracy"),
-            SaveDir  = utils_torch.GetMainSaveDir() + "Performance/",
-            SaveName = "Epoch%d-Batch%d-CorrectRate"%(ContextObj.EpochIndex, ContextObj.BatchIndex),
+            SaveDir  = utils_torch.GetMainSaveDir() + "Performance-Accuracy/",
+            #SaveName = "Epoch%d-Batch%d-CorrectRate~Epoch"%(ContextObj.EpochIndex, ContextObj.BatchIndex),
+            SaveName = "CorrectRate~Epoch",
+            ContextObj=ContextObj.Copy(),
+        )
+
+        utils_torch.AddLog("Plotting Loss Along Train...")
+        utils_torch.analysis.PlotTotalLossEpochBatch(
+            LogTrain = logTrain.GetLogByName("TotalLoss"),
+            LogTest  = ContextObj.Trainer.Modules.LogTest.GetLogByName("TotalLoss"),
+            SaveDir = utils_torch.GetMainSaveDir() + "Performance-Loss/",
+            #SaveName = "Epoch%d-Batch%d-TotalLoss~Epoch"%(ContextObj.EpochIndex, ContextObj.BatchIndex),
+            SaveName = "TotalLoss~Epoch",
             ContextObj=ContextObj.Copy(),
         )
     def AfterBatchTrain(self, ContextObj):
         Trainer = ContextObj.Trainer
         EpochIndex = ContextObj.EpochIndex
         BatchIndex = ContextObj.BatchIndex
-
-        if EpochIndex < 0:
-            return
+        # if EpochIndex < 0:
+        #     return
 
         log = Trainer.cache.LogTrain
         agent = Trainer.agent
         FullName = agent.Modules.model.GetFullName()
 
-        utils_torch.AddLog("Plotting Loss Curve...")
-        utils_torch.analysis.AnalyzeLossEpochBatch(
+        utils_torch.AddLog("Plotting Loss Along Train...")
+        utils_torch.analysis.PlotAllLossEpochBatch(
             log.GetLogOfType("Loss"),
-            SaveDir = utils_torch.GetMainSaveDir() + "Performance/",
+            SaveDir = utils_torch.GetMainSaveDir() + "Performance-Loss/",
+            SaveName = "Epoch%d-Batch%d-Loss(Train)~Epoch"%(ContextObj.EpochIndex, ContextObj.BatchIndex),
             ContextObj=ContextObj.Copy(),
         )
 
@@ -231,35 +328,38 @@ class AnalysisForImageClassificationTask:
         )
         return log
     def AfterBatchTest(self, ContextObj):
-        log = EmptyPyObj()
-        log.FromPyObj(self.RunTestBatches(
+        log = self.RunTestBatches(
             utils_torch.PyObj(ContextObj).Update({"TestBatchNum": 10})
-        ))
-
-        # Save PCA data
-        DirPCA = utils_torch.GetMainSaveDir() + "PCA-Analysis-Along-Train-Test/" + "cache/"
-        log.PCA.ToFile(DirPCA + "Epoch%d-Batch%d-PCA.data"%(ContextObj.EpochIndex, ContextObj.BatchIndex))
-
-        # Weight ~ ResponseSimilarity Correlation Analysis
-        utils_torch.analysis.PlotResponseSimilarityAndWeightCorrelation(
-            log.Correlation,
-            # CorrelationMatrix=logCorrelation.ResponseSimilarity,
-            # Weight=logCorrelation.Weight,
-            SaveDir=utils_torch.GetMainSaveDir() + "Hebb-Analysis-Test/",
-            ContextObj=ContextObj.Copy()
-            #SaveName="Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
         )
 
-        # Load saved PCA data at different batches.
-        LogsPCA = utils_torch.analysis.ScanLogPCA(
-            ScanDir = DirPCA
+        # Save Weight ~ ResponseSimilarity Correlation data and plot.
+        DirHebb = utils_torch.GetMainSaveDir() + "Hebb-Analysis-Test/"
+        log.Correlation.ToFile(DirHebb + "cache/" + "Epoch%d-Batch%d-ResponseWeightCorrelation.data"%(ContextObj.EpochIndex, ContextObj.BatchIndex))
+        log.Correlation.Plot(
+            SaveDir=DirHebb, ContextObj=ContextObj.Copy()
         )
-        # PCA analysis
-        utils_torch.analysis.PlotPCAAlongTrain(
-            LogsPCA, 
-            SaveDir = utils_torch.GetMainSaveDir() + "PCA-Analysis-Along-Train-Test/" + "Along-Train/",
+        Logs = ScanLogForSimilarityAndWeightCorrelation(DirHebb + "cache/", ContextObj.Copy())
+        logCorrelationAlongTrain = LogForResponseSimilarityAndWeightCorrelationAlongTrain(ContextObj.EpochNum, ContextObj.BatchNum)
+        logCorrelationAlongTrain.LogBatches(Logs)
+        logCorrelationAlongTrain.Plot(
+            SaveDir = DirHebb,
             ContextObj = ContextObj.Copy()
         )
+
+        # Save PCA data
+        DirPCA = utils_torch.GetMainSaveDir() + "PCA-Analysis-Along-Train-Test/"
+        log.PCA.ToFile(DirPCA + "cache/" + "Epoch%d-Batch%d-PCA.data"%(ContextObj.EpochIndex, ContextObj.BatchIndex))
+
+        # Load saved PCA data at different batches and plot PCA along train.
+        LogsPCA = utils_torch.analysis.ScanLogPCA(
+            ScanDir = DirPCA + "cache/"
+        )
+        utils_torch.analysis.PlotPCAAlongTrain(
+            LogsPCA,
+            SaveDir = DirPCA + "Along-Train/",
+            ContextObj = ContextObj.Copy()
+        )
+
         return log
 
     def RunTestBatches(self, ContextObj):
@@ -272,12 +372,15 @@ class AnalysisForImageClassificationTask:
         BatchParam = Trainer.GetBatchParam()
         Dataset = Trainer.world
         Dataset.PrepareBatches(BatchParam, "Test")
+        
         logTest = Trainer.Modules.LogTest
         logTest.SetEpochIndex(ContextObj.EpochIndex)
         logTest.SetBatchIndex(ContextObj.BatchIndex)
+        
         log = utils_torch.log.LogForEpochBatchTrain()
         log.SetEpochIndex(0)
-        logCorrelation = LogForWeightAndResponseSimilarityCorrelation()
+
+        logCorrelation = LogForResponseSimilarityAndWeightCorrelation(EpochIndex=EpochIndex, BatchIndex=BatchIndex)
         logPCA = utils_torch.analysis.LogForPCA(EpochIndex=EpochIndex, BatchIndex=BatchIndex)
 
         #logAccuracy = utils_torch.analysis.LogForAccuracyAlongTrain()
@@ -291,7 +394,7 @@ class AnalysisForImageClassificationTask:
                 log
             ]
             utils_torch.CallGraph(agent.Dynamics.TestBatchRandom, InList=InList)
-            
+
             # Log Response and Weight Pairs
             for Name, Pair in agent.Modules.model.param.Analyze.ResponseAndWeightPairs.Items():
                 logCorrelation.LogBatch(
@@ -305,12 +408,10 @@ class AnalysisForImageClassificationTask:
                     FullName + "." + Name, log.GetLogValueByName(FullName + "." + Name),
                 )
 
-        # Calculate Accuracy
-        self.CalculateAccuracyForLog(
-            log.GetLogByName("Accuracy"),
-            ContextObj=ContextObj.Copy()
+        # Calculate performance-accuracy and add to Trainer.Modules.LogTest
+        self.CalculateAverageAccuracyForLog(
+            log.GetLogByName("Accuracy"), ContextObj=ContextObj.Copy()
         )
-
         _logAccuracy = log.GetLogByName("Accuracy")
         logTest.AddLogDict("Accuracy", 
             {
@@ -320,10 +421,17 @@ class AnalysisForImageClassificationTask:
             }
         )
 
+        _logLoss = log.GetLogOfType("Loss")
+        self.CalculateAverageLossForLog(
+            _logLoss, ContextObj=ContextObj.Copy()
+        )
+        for Name, Log in _logLoss.items():
+            logTest.AddLogList(Name, Log["AverageLoss"], Type="Loss")
+
         # Calculate ResponseSimilarity and set weight for each response pair
-        logCorrelation.CalculateResponseSimilarity()
         for Name, Pair in agent.Modules.model.param.Analyze.ResponseAndWeightPairs.Items():
             logCorrelation.LogWeight(Name, log.GetLogValueByName(FullName + "." + "Weight")[Pair.Weight])
+        logCorrelation.Analyze()
         
         # Calculate PCA
         logPCA.CalculatePCA()
@@ -333,7 +441,6 @@ class AnalysisForImageClassificationTask:
                 "PCA": logPCA,
                 "Main": log,
             })
-
     def AddAnalysis(self):
         GlobalParam = utils_torch.GetGlobalParam()
         TaskName = GlobalParam.CmdArgs.TaskName2
@@ -343,13 +450,10 @@ class AnalysisForImageClassificationTask:
             method(**_CmdArgs.ToDict())
         else: # To be implemented. Specify from file
             raise Exception()
-    def BeforeTrain(self, ContextInfo):
-        self.AnalyzeAfterBatchTest(ContextInfo)
-        Trainer = ContextInfo.Trainer
-        # Trainer.Modules.LogTrain.AccuracyAlongTraining = []
-        # Trainer.cache.log.AccuracyAlongTraining = utils_torch.log.LogForAccuracyAlongTrain()
-    def AfterTrain(self):
-        AnalyzeResponseSimilarityAndWeightCorrelation()
+    def BeforeTrain(self, ContextObj):
+        self.AfterBatchTest(ContextObj)
+    def AfterTrain(self, ContextObj):
+        self.AfterBatchTest(ContextObj)
         return
     def AfterEveryBatch(self, ContextObj):
         self.CalculateRecentAccuracyForLog(
@@ -357,10 +461,14 @@ class AnalysisForImageClassificationTask:
             ContextObj,
         )
         return
-    def CalculateAccuracyForLog(self, Log, ContextObj):
+    def CalculateAverageAccuracyForLog(self, Log, ContextObj):
         SampleNumTotal = sum(Log["SampleNumTotal"])
         SampleNumCorrect = sum(Log["SampleNumCorrect"])
         Log["CorrectRate"].append(1.0 * SampleNumCorrect / SampleNumTotal)
+    def CalculateAverageLossForLog(self, LogDict, ContextObj):
+        for Name, Log in LogDict.items():
+            Loss = Log["Value"]
+            Log["AverageLoss"] = sum(Loss)/len(Loss)
     def CalculateRecentAccuracyForLog(self, Log, ContextObj, BatchNumMerge = 5):
         #Trainer = ContextObj.Trainer
         #Accuracy = Trainer.cache.LogTrain.GetLogByName("Accuracy")
@@ -382,7 +490,14 @@ class AnalysisForImageClassificationTask:
         SampleNumCorrect = sum(Log["SampleNumCorrect"][BatchStartIndex:])
         Log["CorrectRate"].append(1.0 * SampleNumCorrect / SampleNumTotal)
 
-def AnalyzeResponseSimilarityAndWeightCorrelation(*Args, **kw):
+def ScanLogForSimilarityAndWeightCorrelation(ScanDir, ContextObj):
+    DataFiles = utils_torch.files.ListAllFiles(ScanDir)
+    Logs = []
+    for FileName in DataFiles:
+        Logs.append(LogForResponseSimilarityAndWeightCorrelation().FromFile(ScanDir + FileName))
+    return Logs
+
+def PlotResponseSimilarityAndWeightCorrelationAlongTrain(*Args, **kw):
     TestBatchNum = kw.setdefault("TestBatchNum", 10)
     # Do supplementary analysis for all saved models under main save directory.
     GlobalParam = utils_torch.GetGlobalParam()
@@ -398,7 +513,7 @@ def AnalyzeResponseSimilarityAndWeightCorrelation(*Args, **kw):
     
     AnalysisSaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-Along-Learning-Test/"
 
-    logCorrelation = LogForWeightAndResponseSimilarityCorrelationAlongTrain(EpochNum, BatchNum)
+    logCorrelation = LogForResponseSimilarityAndWeightCorrelationAlongTrain(EpochNum, BatchNum)
     SaveDirs = utils_torch.GetAllSubSaveDirsEpochBatch("SavedModel")
     for SaveDir in SaveDirs:
         EpochIndex, BatchIndex = utils_torch.train.ParseEpochBatchFromStr(SaveDir)
@@ -427,7 +542,7 @@ def AnalyzeResponseSimilarityAndWeightCorrelation(*Args, **kw):
             "&^param.task.BuildTrainer", **kw
         )
         
-        _logCorrelation = CalculateConnectivityPattern(
+        _logCorrelation = CalculateResponseSimilarityAndWeightCorrelation(
             EpochIndex=EpochIndex, BatchIndex=BatchIndex, log=log, TestBatchNum=TestBatchNum
         )
 
@@ -450,21 +565,22 @@ def AnalyzeResponseSimilarityAndWeightCorrelation(*Args, **kw):
         PlotNum=100, SaveDir=AnalysisSaveDir, SaveName="Recurrent.FiringRate2Output.Weight"
     )
 
-def CalculateConnectivityPattern(ContextInfo):
+def CalculateResponseSimilarityAndWeightCorrelation(ContextInfo):
     GlobalParam = utils_torch.GetGlobalParam()
     EpochIndex = ContextInfo.EpochIndex
     BatchIndex = ContextInfo.BatchIndex
     TestBatchNum = ContextInfo.setdefault("TestBatchNum", 10)
     Trainer = ContextInfo.Trainer
 
-    agent = GlobalParam.object.agent
-    BatchParam = GlobalParam.param.task.Train.BatchParam
-    Dataset = GlobalParam.object.image
+    agent = Trainer.GetAgent()
+
+    BatchParam = Trainer.GetBatchParam()
+    Dataset = Trainer.GetWorld()
     Dataset.PrepareBatches(BatchParam, "Test")    
     
     log = utils_torch.log.LogForEpochBatchTrain()
     log.SetEpochIndex(0)
-    logCorrelation = LogForWeightAndResponseSimilarityCorrelation()
+    logCorrelation = LogForResponseSimilarityAndWeightCorrelation()
     FullName = agent.Modules.model.GetFullName()
     
     for TestBatchIndex in range(TestBatchNum):
@@ -474,7 +590,6 @@ def CalculateConnectivityPattern(ContextInfo):
             utils_torch.PyObj([
                 "&^param.task.Train.BatchParam",
                 "&^param.task.Train.OptimizeParam",
-                #"&^param.task.Train.NotifyEpochBatchList"
                 log,
             ]),
             ObjRoot=GlobalParam,
@@ -611,3 +726,106 @@ def AnalyzePCAAndResponseWeightCorrelation(*Args, **kw):
 #             SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-2/" + "Recurrent.FiringRate2RecurrentInput/",
 #             SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
 #         )
+# def AnalyzeResponseSimilarityAndWeightCorrelation(
+#         ResponseA, ResponseB, WeightUpdate=None, Weight=None, 
+#         WeightUpdateMeasure="Value",
+#         SaveDir=None, SaveName=None, 
+#     ):
+#     # ResponseA: [BatchSize, TimeNum, NeuronNumA]
+#     # ResponseB: [BatchSize, TimeNum, NeuronNumB]
+#     ResponseA = utils_torch.ToNpArray(ResponseA)
+#     ResponseB = utils_torch.ToNpArray(ResponseB)
+#     ResponseA = ResponseA.reshape(-1, ResponseA.shape[-1])
+#     ResponseB = ResponseB.reshape(-1, ResponseB.shape[-1])
+
+#     Weight = utils_torch.ToNpArray(Weight)
+#     WeightFlat = utils_torch.FlattenNpArray(Weight)
+    
+#     if WeightUpdate is not None:
+#         WeightUpdate = utils_torch.ToNpArray(WeightUpdate)
+#         if WeightUpdateMeasure in ["Value"]:
+#             WeightUpdate = WeightUpdate / np.sign(Weight)
+#             WeightUpdate = utils_torch.math.ReplaceNaNOrInfWithZeroNp(WeightUpdate)
+#         elif WeightUpdateMeasure in ["Ratio"]:
+#             WeightUpdate = WeightUpdate / Weight # Ratio
+#             WeightUpdate = utils_torch.math.ReplaceNaNOrInfWithZeroNp(WeightUpdate)
+#         else:
+#             raise Exception(WeightUpdateMeasure)
+    
+#         WeightUpdateFlat = utils_torch.FlattenNpArray(WeightUpdate)
+#         WeightUpdateStat = utils_torch.math.NpStatistics(WeightUpdate)
+
+#     CorrelationMatrix = utils_torch.math.CalculatePearsonCoefficientMatrix(ResponseA, ResponseB)
+#     CorrelationMatrixFlat = utils_torch.FlattenNpArray(CorrelationMatrix)
+
+#     assert CorrelationMatrix.shape == WeightUpdate.shape
+
+#     XYs = np.stack(
+#         [
+#             CorrelationMatrixFlat,
+#             WeightUpdateFlat
+#         ],
+#         axis=1
+#     ) # [NeuronNumA * NeuronNumB, (Correlation, WeightUpdate)]
+    
+#     fig, axes = utils_torch.plot.CreateFigurePlt(4, Size="Medium")
+#     if WeightUpdateMeasure in ["Sign"]:
+#         WeightUpdateName = r'$-\frac{\partial L}{\partial w} \cdot {\rm Sign}(w) $' #r is necessary
+#         YRange = None
+#     elif WeightUpdateMeasure in ["Ratio"]:
+#         WeightUpdateName = r'$-\frac{\partial L}{\partial w} / w $'
+#         YRange = [
+#             WeightUpdateStat.Mean - 3.0 * WeightUpdateStat.Std,
+#             WeightUpdateStat.Mean + 3.0 * WeightUpdateStat.Std,
+#         ]
+#     else:
+#         raise Exception(WeightUpdateMeasure)
+        
+#     ax = utils_torch.plot.GetAx(axes, 0)
+#     Title = "%s- ResponseSimilarity"%WeightUpdateName
+#     utils_torch.plot.PlotPoints(
+#         ax, XYs, Color="Blue", Type="EmptyCircle", Size=0.5,
+#         XLabel="Response Similarity", YLabel=WeightUpdateName, 
+#         Title=Title, YRange=YRange
+#     )
+
+#     ax = utils_torch.plot.GetAx(axes, 1)
+    
+#     XYs = np.stack(
+#         [
+#             CorrelationMatrixFlat,
+#             WeightFlat,
+#         ],
+#         axis=1
+#     ) # [NeuronNumA * NeuronNumB, (Correlation, Weight)]
+
+#     Title = "Weight - ResponseSimilarity"
+#     utils_torch.plot.PlotPoints(
+#         ax, XYs, Color="Blue", Type="EmptyCircle", Size=0.5,
+#         XLabel="Response Similarity", YLabel="Connection Strength", 
+#         Title=Title,
+#     )
+
+#     ax = utils_torch.plot.GetAx(axes, 2)
+#     Title = "%s - Response Similarity Binned Mean And Std"%WeightUpdateName
+#     BinStats = utils_torch.math.CalculateBinnedMeanAndStd(CorrelationMatrixFlat, WeightUpdateFlat)
+#     utils_torch.plot.PlotMeanAndStdCurve(
+#         ax, BinStats.BinCenters, BinStats.Mean, BinStats.Std,
+#         XLabel = "Response Similarity", YLabel=WeightUpdateName, Title=Title
+#     )
+
+#     ax = utils_torch.plot.GetAx(axes, 3)
+#     BinStats = utils_torch.math.CalculateBinnedMeanAndStd(CorrelationMatrixFlat, WeightFlat)
+    
+#     utils_torch.plot.PlotMeanAndStdCurve(
+#         ax, BinStats.BinCenters, BinStats.Mean, BinStats.Std,
+#         XLabel = "Response Similarity", YLabel="Connection Strength", Title="Weight - Response Similarity Binned Mean And Std",
+#     )
+    
+#     plt.suptitle(SaveName)
+#     plt.tight_layout()
+#     # Scatter plot points num might be very large, so saving in .svg might cause unsmoothness when viewing.
+#     utils_torch.plot.SaveFigForPlt(SavePath=SaveDir + SaveName + "-Weight-Response-Similarity.png")
+#     return
+
+

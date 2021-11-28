@@ -99,7 +99,7 @@ def QuickScript(Args):
     # return
 # CmdArgs.QuickScript = QuickScript
 
-import Analyze
+import Tasks
 def AddObjRefForParseRouters():
     ObjRefLocal = utils_torch.PyObj()
     #ObjRefLocal.LogSpatialActivity = utils.model.LogSpatialActivity
@@ -119,3 +119,10 @@ RegisterExternalClassesAndMethods()
 if __name__=="__main__":
     main()
     #QuickScript(Args)
+
+
+class Tasks:
+    def __init__(self):
+        return
+    def SaveAndLoad():
+        return
