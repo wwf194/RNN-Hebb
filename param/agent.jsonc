@@ -2,70 +2,57 @@
     "Task": "$^param.task.Task",
     "HiddenNeurons.Num": 500,
     "HiddenNeurons.IsExciInhi": false,
-    "InitTasks":[
-        {
-            "FunctionCall": [
-                "&*SetModelInputOutput",
-                "&*ParseParam",
-            ]
-        },
-    ],
+    // "InitTasks":[
+    //     {
+    //         "FunctionCall": [
+    //             "&*SetModelInputOutput",
+    //             "&*ParseParam",
+    //         ]
+    //     },
+    // ],
     "Modules":{
+        "dataset": "__ToBeSet__",
+        "model": "__ToBeSet__",
         //"Dataset":"$^param.image",
-        "model":"$^param.model",
-        "model.Input.Type": "dLDirection", //dXY
-        "model.InputInit.Type": "__ToBeSet__",
-        "model.ModulePath": "utils_torch.Modules.RNNLIF",
-        "__ResolveBase__": true,
+        // "model":"$^param.model",
+        // "dataset": "$^param.dataset",
+        // "model.Input.Type": "dLDirection", //dXY
+        // "model.InputInit.Type": "__ToBeSet__",
+        // "model.ModulePath": "utils_torch.transform.RNNLIF",
     },
     "Dynamics":{
-        "TrainEpochInit":{ // Things to do before new epoch.
-            "In": ["BatchParam", "OptimizeParam", "log"],
-            "Out": ["BatchNum"],
-            "Routings":[
-                "Type=Train |--> &^object.image.ClearBatches",
-                "BatchParam, Type=Train |--> &^object.image.PrepareBatches",
-                "Type=Train |--> &^object.image.GetBatchNum |--> BatchNum",
-            ]
-        },
-        "TrainBatch":{
-            "In":["BatchParam", "TrainParam", "log"],
-            "Out":[],
-            "Routings": [
-                "Type=Train |--> &^object.image.GetBatch |--> DataBatch",
-                "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
-                "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
-                "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TrainBatch",
-            ],
-        },
-        "InitBeforeEpochTest":{
-            "In": ["BatchParam", "TrainParam"],
-            "Out": ["BatchNum"],
-            "Routings":[
-                "Type=Test |--> &^object.image.ClearBatches",
-                "BatchParam, Type=Test |--> &^object.image.PrepareBatches",
-                "Type=Test |--> &^object.image.GetBatchNum|--> BatchNum",
-            ]
-        },
-        "TestBatch":{
-            "In":["BatchParam", "TrainParam", "log"],
-            "Out":[],
-            "Routings": [
-                "Type=Test |--> &^object.image.GetBatch |--> DataBatch",
-                "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
-                "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
-                "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TestBatch",
-            ],
-        },
-        "TestBatchRandom":{
-            "In":["BatchParam", "TrainParam", "log"],
-            "Out":[],
-            "Routings": [
-                "Type=Test |--> &^object.image.GetRandomBatch |--> DataBatch",
-                "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
-                "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
-                "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TestBatch",
-            ],
-        }
+        "BeforeEpochTrain": "ClassMethod",
+        // { // Things to do before new epoch.
+        //     "In": ["BatchParam", "OptimizeParam", "log"],
+        //     "Out": ["BatchNum"],
+        //     "Routings":[
+        //         "Name=Train |--> &^object.image.ClearFlow",
+        //         "BatchParam=%BatchParam, Name=Train, Type=Train |--> &^object.image.CreateFlow",
+        //         "Name=Train |--> &^object.image.GetBatchNum |--> BatchNum",
+        //     ]
+        // },
+        "RunTrainBatch": "ClassMethod",
+        // {
+        //     "In":["BatchParam", "TrainParam", "log"],
+        //     "Out":[],
+        //     "Routings": [
+        //         "Name=Train |--> &^object.image.GetBatch |--> DataBatch",
+        //         "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
+        //         "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
+        //         "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TrainBatch",
+        //     ],
+        // },
+        "InitTestEpoch": "ClassMethod",
+        // {
+        //     "In": ["BatchParam", "TrainParam"],
+        //     "Out": ["BatchNum"],
+        //     "Routings":[
+        //         "Name=Test|--> &^object.image.ClearFlow",
+        //         "BatchParam=%BatchParam, Name=Test, Type=Test |--> &^object.image.CreateFlow",
+        //         "Name=Test |--> &^object.image.GetBatchNum|--> BatchNum",
+        //     ]
+        // },
+        "RunTestBatch":"ClassMethod",
+        "RunTestBatchRandom": "ClassMethod"
     }
 }

@@ -1,5 +1,6 @@
 {
     "Type": "RNNLIF",
+    "ClassPath": "utils_torch.transform.RNNLIF",
     "InitTasks":[],
     "Iteration.Time": 10,
     "Neurons":{
@@ -7,12 +8,13 @@
             "Num":"__ToBeSet__"
         },
         "Recurrent":{
-            "Num": "$^param.agent.HiddenNeurons.Num",
-            "IsExciInhi": "$^param.agent.HiddenNeurons.IsExciInhi",
-            "Excitatory":{
-                "Ratio": 0.8
-            },
-            "Inhibitory":{},
+            //"Num": "$^param.agent.HiddenNeurons.Num",
+            //"IsExciInhi": "$^param.agent.HiddenNeurons.IsExciInhi",
+            //"Num": "__ToBeSet__",
+            //"IsExciInhi": "__ToBeSet__",
+            "Num":500, "IsExciInhi": "__ToBeSet__",
+            "Excitatory.Ratio": 0.8, // Only applicable when Neurons.IsExciInhi.Recurrent==True
+            //"Inhibitory":{},
             "NonLinear":"ReLU"
         },
         "Output":{
@@ -53,20 +55,20 @@
         "Recurrent":{
             "Type":"RecurrentLIFLayer",
             "Subtype":"f(Wx+b)",
-            //"IsExciInhi": "$Neurons.Recurrent.IsExciInhi",
+            //"IsExciInhi": "$~Neurons.Recurrent.IsExciInhi",
             "TimeConst": 0.1,
-            "Neurons": "$Neurons.Recurrent",
+            "Neurons": "$~Neurons.Recurrent",
             "Modules":{
                 "NonLinear":{
                     "Type": "NonLinear",
-                    "Subtype":"$Neurons.Recurrent.NonLinear",
+                    "Subtype":"$~Neurons.Recurrent.NonLinear",
                 },
                 "FiringRate2RecurrentInput":{
                     "Type": "LinearLayer",
                     "Subtype": "Wx",
-                    "IsExciInhi": "$Neurons.Recurrent.IsExciInhi",
-                    "Input.Num": "$Neurons.Recurrent.Num",
-                    "Output.Num": "$Neurons.Recurrent.Num",
+                    "IsExciInhi": "$~Neurons.Recurrent.IsExciInhi",
+                    "Input.Num": "$~Neurons.Recurrent.Num",
+                    "Output.Num": "$~Neurons.Recurrent.Num",
                     "NoSelfConnection": true,
                     "Weight.Init":{
                         "Method": "KaimingNormal",
@@ -76,9 +78,9 @@
                 "FiringRate2Output":{
                     "Type": "LinearLayer",
                     "Subtype": "Wx",
-                    "IsExciInhi": "$Neurons.Recurrent.IsExciInhi",
-                    "Input.Num": "$Neurons.Recurrent.Num",
-                    "Output.Num": "$Neurons.Output.Num",                    
+                    "IsExciInhi": "$~Neurons.Recurrent.IsExciInhi",
+                    "Input.Num": "$~Neurons.Recurrent.Num",
+                    "Output.Num": "$~Neurons.Output.Num",                    
                 },
                 "MembranePotentialDecay":{
                     "Type": "Internal",
@@ -91,7 +93,7 @@
                 },
                 "GetBias": {
                     "Type": "Bias",
-                    "Size": "$Neurons.Recurrent.Num"
+                    "Size": "$~Neurons.Recurrent.Num"
                 },
             },
             "Dynamics":{
@@ -115,18 +117,18 @@
         "InputTransform":{
             "Type": "NonLinearLayer",
             "Subtype":"f(Wx+b)",
-            "Input.Num":"$Neurons.Input.Num",
-            "Output.Num":"$Neurons.Recurrent.Num",
+            "Input.Num":"$~Neurons.Input.Num",
+            "Output.Num":"$~Neurons.Recurrent.Num",
             "Weight.Init":{
                 "Method": "KaimingNormal",
                 "Coefficient": 1.0e-0
             },
             "Bias": true,
-            "NonLinear":"$Neurons.Recurrent.NonLinear"
+            "NonLinear":"$~Neurons.Recurrent.NonLinear"
         },
         "SplitHiddenAndmembranePotential":{
             "Type": "Lambda",
-            "Lambda": "lambda data: [data[:, :($Neurons.Recurrent.Num)], data[:, ($Neurons.Recurrent.Num):]]"
+            "Lambda": "lambda data: [data[:, :($~Neurons.Recurrent.Num)], data[:, ($~Neurons.Recurrent.Num):]]"
         },
         "GetLast":{
             "Type": "Lambda",
@@ -177,18 +179,18 @@
                 "Args": "lambda List:torch.stack(List, axis=1)"
             }
         },
-        "PredictionLoss": "$Loss.Prediction",
+        "PredictionLoss": "$~Loss.Prediction",
         "GetConstrainWeight":{
             "Type": "FunctionsOutputs",
             "Functions": "$Loss.WeightConstrain.GetWeightMethods"
         },
         "WeightConstrainLoss":{
             "Type": "L2Loss",
-            "Coefficient": "$Loss.WeightConstrain.Coefficient",
+            "Coefficient": "$~Loss.WeightConstrain.Coefficient",
         },
         "ActivityConstrainLoss":{
             "Type": "L2Loss",
-            "Coefficient": "$Loss.ActivityConstrain.Coefficient",
+            "Coefficient": "$~Loss.ActivityConstrain.Coefficient",
         },
         "GradientDescend.Type":"GradientDescend"
     },
@@ -241,7 +243,7 @@
         "Optimize":{
             "In": ["outputs", "outputTarget", "activity", "trainParam", "IsTest", "log"],
             "Routings":[
-                "outputs |--> &GetLastOutput |--> outputLast",
+                "outputs |--> &GetLast |--> outputLast",
                 "outputLast, outputTarget |--> &PredictionLoss                 |--> mainLoss",
                 "activity, mainLoss   |--> &CalculateActivityConstrainLoss |--> activityConstrainLoss",
                 "mainLoss |--> &CalculateWeightConstrainLoss |--> weightConstrainLoss",
@@ -320,12 +322,12 @@
         },
         "LogActivity":{
             "Routings":[
-                "outputs    |--> &GetLast |--> outputLast",
-                "firingRate |--> &GetLast |--> firingRatesLast",
+                "outputs     |--> &GetLast |--> outputLast",
+                "firingRates |--> &GetLast |--> firingRatesLast",
                 "recurrentInputs,    Name=RecurrentInputs,    Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "membranePotentials, Name=MembranePotentials, Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "firingRates,        Name=FiringRates,        Type=TimeVaryingActivity, log=%log |--> &LogCache",
-                "firingRatesLast,    Name=FiringRatesLast,    Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "firingRatesLast,    Name=FiringRatesLast,    Type=Activity           , log=%log |--> &LogCache",
                 "outputs,            Name=Outputs,            Type=TimeVaryingActivity, log=%log |--> &LogCache",
                 "outputLast,         Name=OutputLast,         Type=Activity,            log=%log |--> &LogCache",
                 //"outputTarget,     Name=OutputTarget,       Type=TimeVaryingActivity, log=%log |--> &LogCache",
@@ -369,7 +371,7 @@
             }
         },
         "PCA":[
-            "OutputLast", "FiringRatesLast"
+            "FiringRatesLast"
         ],
     },
 }

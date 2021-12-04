@@ -1,0 +1,33 @@
+{
+    "Type": "CIFAR10",
+    "ClassPath": "utils_torch.dataset.cifar10.DataManagerForEpochBatchTrain",
+    "Input.Num": 1024, // For gray images, Input.Num is 1024. For color images, Input.Num is 3072.
+    "Output.Num": 10, 
+    "Data.Transform":{
+        "Methods":[
+            {
+                "Type": "ToGivenDataType",
+                "DataType": "np.float32",
+            },
+            {
+                "Type": "Color2Gray",
+            },
+            {
+                "Type": "Norm2Mean0Std1",
+                "axis": [0, 1, 2], // Norm on each color channel separately
+            },
+            {
+                "Type": "Flatten"
+            },
+        ],
+        "Md5": "5531e1661fcbb3c821b868536dc6540c"
+    },
+    "Modules":{
+        "CreateFlow":{
+            "Type": "Internal", // Internal methods.
+        },
+        "GetBatch":{
+            "Type": "Internal",
+        },
+    },
+}

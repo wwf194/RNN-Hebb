@@ -6,8 +6,106 @@ from collections import defaultdict
 import utils_torch
 from utils_torch.attrs import *
 
-class LogForResponseSimilarityAndWeightCorrelation:
+import Agents
+
+class MainTasksForImageClassification:
+    def __init__(self, TaskParam):
+        param = self.param = utils_torch.PyObj(TaskParam)
+        cache = self.cache = utils_torch.EmptyPyObj()    
+    
+        self.ParseParam()
+   
+        if param.MainTask in ["Train"]:
+            SetAttrs(param, "Batch.Num", "Auto")
+            cache.BatchParam = utils_torch.PyObj({
+                "Batch.Size": param.Train.Batch.Size,
+                "Batch.Num":  param.Train.Batch.Num
+            })
+
+            EnsureAttrs(param, "Agent.ParamFile", default="./param/agent.jsonc")
+        else:
+            raise Exception(param.MainTask)
+   
+    def ParseParam(self):
+        param = self.param
+        if not HasAttrs(param, "Model.ParamFile"):
+            assert HasAttrs(param, "Model.Type")
+            param.Model.ParamFile = self.ParseParamFileFromType(param.Model.Type)
+        
+        #assert HasAttrs(param.Task.Dataset.Name)
+        if not HasAttrs(param, "Task.Dataset.ParamFile"):
+            param.Task.Dataset.ParamFile = self.ParseParamFileFromType(param.Task.Dataset.Name)
+
+    def DoTask(self):
+        param = self.param
+        MainTask = param.MainTask
+        if MainTask in ["Train"]:
+            self.InitObjects()
+            self.Train()
+        else:
+            raise Exception(MainTask)
+    def ParseParamFileFromType(self, Type):
+        if Type in ["RNNLIF"]:
+            ParamFile = "./param/RNNLIF.jsonc"
+        elif Type in ["cifar10"]:
+            ParamFile = "./param/cifar10.jsonc"
+        elif Type in ["agent"]:
+            ParamFile = "./param/agent.jsonc"
+        else:
+            raise Exception(Type)
+        return ParamFile
+    
+    def InitObjects(self):
+        GlobalParam = utils_torch.GetGlobalParam()
+        # Load param file for nemodel
+        param = self.param
+        cache = self.cache
+        ModelParam = utils_torch.JsonFile2PyObj(param.Model.ParamFile)
+        DatasetParam = utils_torch.JsonFile2PyObj(param.Task.Dataset.ParamFile)
+        AgentParam = utils_torch.JsonFile2PyObj(param.Agent.ParamFile)
+        agent = cache.agent = Agents.Agent(param=AgentParam)
+        agent.SetTask(self.param.Task)
+        utils_torch.transform.ParseParamForModule(agent)
+        agent.AddModule("model", ModelParam)
+        agent.AddModule("dataset", DatasetParam)
+
+        agent.OverwriteParam(
+            "Modules.model.Neurons.Recurrent.Num", Value=500 # Neurons Num
+        )
+        agent.OverwriteParam(
+            "Modules.model.Neurons.Recurrent.IsExciInhi", Value=True # Whether or not neurons are excaitatory-inhibitory
+        )
+
+        # agent.Modules.model.SetInputOutputNum(
+        #     agent.Modules.dataset.GetInputOutputShape()
+        # )
+        agent.InitFromParam()
+
+    def Train(self, TaskParam):
+        cache = self.cache
+        param = self.params
+
+        agent = cache.agent
+        agent.CreateTrainFlow()
+        self.EnsureTensorLocation()
+        agent.SetTensorLocation(param.system.TensorLocation)
+    def EnsureTensorLocation(self):
+        # To be implemented: tensors on multiple GPUs
+        param = self.param
+        if not HasAttrs(param, "system.TensorLocation"):
+            TensorLocation = utils_torch.GetTensorLocation(Method="auto")
+            SetAttrs(param, "system.TensorLocation", default=TensorLocation)
+
+    def SaveAndLoad(self, SaveDir):
+        GlobalParam = utils_torch.GetGlobalParam()
+        GlobalParam.object.agent.ToFile(SaveDir)
+        GlobalParam.object.agent.FromFile(SaveDir)
+
+        return
+
+class LogForResponseSimilarityAndWeightCorrelation(utils_torch.log.AbstractLogForBatches):
     def __init__(self, EpochIndex=None, BatchIndex=None):
+        super().__init__(DataOnly=True)
         self.BatchCount = 0
         data = self.data = utils_torch.EmptyPyObj()
         self.log = data.log = utils_torch.GetDefaultDict(lambda:utils_torch.EmptyPyObj())
@@ -17,7 +115,7 @@ class LogForResponseSimilarityAndWeightCorrelation:
             data.BatchIndex = BatchIndex
         data.status = "Initialized"
     def FromFile(self, FilePath):
-        self.data = utils_torch.files.DataFile2PyObj(FilePath)
+        self.data = utils_torch.file.DataFile2PyObj(FilePath)
         self.log = self.data.log
         return self
     def LogBatch(self, Name, ResponseA, ResponseB):
@@ -89,8 +187,7 @@ class LogForResponseSimilarityAndWeightCorrelation:
         # Scatter plot points num might be very large, so saving in .svg might cause unsmoothness when viewing.
         utils_torch.plot.SaveFigForPlt(SavePath=SaveDir + SaveName + "-Weight-Response-Similarity.png")
         return
-
-utils_torch.module.SetMethodForLogClass(LogForResponseSimilarityAndWeightCorrelation, SaveDataOnly=True)        
+#utils_torch.transform.SetMethodForLogClass(LogForResponseSimilarityAndWeightCorrelation, SaveDataOnly=True)        
 
 class LogForResponseSimilarityAndWeightCorrelationAlongTrain:
     def __init__(self, EpochNum, BatchNum):
@@ -228,7 +325,7 @@ class LogForResponseSimilarityAndWeightCorrelationAlongTrain:
             SavePath=SaveDir + SaveName + ".gif"
         )
 
-        utils_torch.files.RemoveFiles(ImagePaths)
+        utils_torch.file.RemoveFiles(ImagePaths)
 
 class AnalysisForImageClassificationTask:
     def __init__(self):
@@ -371,8 +468,8 @@ class AnalysisForImageClassificationTask:
         agent = Trainer.agent
         BatchParam = Trainer.GetBatchParam()
         Dataset = Trainer.world
-        Dataset.PrepareBatches(BatchParam, "Test")
-        
+        Dataset.CreateFlow(BatchParam, Name="RunTestBatches", Type="Test")
+
         logTest = Trainer.Modules.LogTest
         logTest.SetEpochIndex(ContextObj.EpochIndex)
         logTest.SetBatchIndex(ContextObj.BatchIndex)
@@ -393,7 +490,7 @@ class AnalysisForImageClassificationTask:
                 Trainer.GetOptimizeParam(),
                 log
             ]
-            utils_torch.CallGraph(agent.Dynamics.TestBatchRandom, InList=InList)
+            utils_torch.Call(agent.Dynamics.RunTestBatch, *InList)
 
             # Log Response and Weight Pairs
             for Name, Pair in agent.Modules.model.param.Analyze.ResponseAndWeightPairs.Items():
@@ -491,7 +588,7 @@ class AnalysisForImageClassificationTask:
         Log["CorrectRate"].append(1.0 * SampleNumCorrect / SampleNumTotal)
 
 def ScanLogForSimilarityAndWeightCorrelation(ScanDir, ContextObj):
-    DataFiles = utils_torch.files.ListAllFiles(ScanDir)
+    DataFiles = utils_torch.file.ListAllFiles(ScanDir)
     Logs = []
     for FileName in DataFiles:
         Logs.append(LogForResponseSimilarityAndWeightCorrelation().FromFile(ScanDir + FileName))
@@ -576,7 +673,7 @@ def CalculateResponseSimilarityAndWeightCorrelation(ContextInfo):
 
     BatchParam = Trainer.GetBatchParam()
     Dataset = Trainer.GetWorld()
-    Dataset.PrepareBatches(BatchParam, "Test")    
+    Dataset.CreateFlow(BatchParam, "Test")    
     
     log = utils_torch.log.LogForEpochBatchTrain()
     log.SetEpochIndex(0)
@@ -594,7 +691,7 @@ def CalculateResponseSimilarityAndWeightCorrelation(ContextInfo):
             ]),
             ObjRoot=GlobalParam,
         )
-        utils_torch.CallGraph(agent.Dynamics.TestBatchRandom, InList=InList)
+        utils_torch.CallGraph(agent.Dynamics.RunTestBatch, *InList)
         for Name, Pair in agent.Modules.model.param.Analyze.ResponseAndWeightPairs.Items():
             logCorrelation.LogResponse(
                 Name,
@@ -671,161 +768,3 @@ def AnalyzePCAAndResponseWeightCorrelation(*Args, **kw):
     )
     utils_torch.plot.SaveFigForPlt(SavePath=utils_torch.GetMainSaveDir() + "PCA-Hebb/" + "Hebb-PCA.svg")
     return
-
-# def AnalyzeResponseSimilarityAndWeightUpdateCorrelation(*Args, **kw):
-#     # Do supplementary analysis for all saved models under main save directory.
-#     kw.setdefault("ObjRoot", utils_torch.GetGlobalParam())
-    
-#     utils_torch.DoTasks( # Dataset can be reused.
-#         "&^param.task.BuildDataset", **kw
-#     )
-
-#     SaveDirs = utils_torch.GetAllSubSaveDirsEpochBatch("SavedModel")
-#     for SaveDir in SaveDirs:
-#         EpochIndex, BatchIndex = utils_torch.train.ParseEpochBatchFromStr(SaveDir)
-#         utils_torch.AddLog("Testing Model at Epoch%d-Batch%d"%(EpochIndex, BatchIndex))
-#         log = utils_torch.Getlog("DataTest")
-#         log.SetEpochIndex(EpochIndex)
-#         log.SetBatchIndex(BatchIndex)
-
-#         utils_torch.DoTasks(
-#             "&^param.task.Load",
-#             In={"SaveDir": SaveDir}, 
-#             **kw
-#         )
-#         utils_torch.DoTasks(
-#             "&^param.task.BuildTrainer", **kw
-#         )
-#         GlobalParam = utils_torch.GetGlobalParam()
-#         Trainer = GlobalParam.object.trainer
-
-#         InList = utils_torch.parse.ParsePyObjDynamic(
-#             utils_torch.PyObj([
-#                 "&^param.task.Train.BatchParam",
-#                 "&^param.task.Train.OptimizeParam",
-#                 "&^param.task.Train.NotifyEpochBatchList"
-#             ]),
-#             ObjRoot=GlobalParam
-#         )
-#         utils_torch.CallGraph(Trainer.Dynamics.TestEpoch, InList=InList)
-
-#         utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
-#             ResponseA=log.GetLogByName("agent.model.FiringRates")["Value"],
-#             ResponseB=log.GetLogByName("agent.model.Outputs")["Value"],
-#             WeightUpdate=log.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2Output.Weight"],
-#             Weight = log.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2Output.Weight"],
-#             SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-1/" + "Recurrent.FiringRate2Output/",
-#             SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2Output.Weight"%(EpochIndex, BatchIndex),
-#         )
-
-#         utils_torch.analysis.AnalyzeResponseSimilarityAndWeightUpdateCorrelation(
-#             ResponseA=log.GetLogByName("agent.model.FiringRates")["Value"],
-#             ResponseB=log.GetLogByName("agent.model.FiringRates")["Value"],
-#             WeightUpdate=log.GetLogByName("MinusGrad")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
-#             Weight = log.GetLogByName("Weight")["Value"]["Recurrent.FiringRate2RecurrentInput.Weight"],
-#             SaveDir = utils_torch.GetMainSaveDir() + "Hebb-Analysis-2/" + "Recurrent.FiringRate2RecurrentInput/",
-#             SaveName = "Epoch%d-Batch%d-Recurrent.FiringRate2RecurrentInput.Weight"%(EpochIndex, BatchIndex),
-#         )
-# def AnalyzeResponseSimilarityAndWeightCorrelation(
-#         ResponseA, ResponseB, WeightUpdate=None, Weight=None, 
-#         WeightUpdateMeasure="Value",
-#         SaveDir=None, SaveName=None, 
-#     ):
-#     # ResponseA: [BatchSize, TimeNum, NeuronNumA]
-#     # ResponseB: [BatchSize, TimeNum, NeuronNumB]
-#     ResponseA = utils_torch.ToNpArray(ResponseA)
-#     ResponseB = utils_torch.ToNpArray(ResponseB)
-#     ResponseA = ResponseA.reshape(-1, ResponseA.shape[-1])
-#     ResponseB = ResponseB.reshape(-1, ResponseB.shape[-1])
-
-#     Weight = utils_torch.ToNpArray(Weight)
-#     WeightFlat = utils_torch.FlattenNpArray(Weight)
-    
-#     if WeightUpdate is not None:
-#         WeightUpdate = utils_torch.ToNpArray(WeightUpdate)
-#         if WeightUpdateMeasure in ["Value"]:
-#             WeightUpdate = WeightUpdate / np.sign(Weight)
-#             WeightUpdate = utils_torch.math.ReplaceNaNOrInfWithZeroNp(WeightUpdate)
-#         elif WeightUpdateMeasure in ["Ratio"]:
-#             WeightUpdate = WeightUpdate / Weight # Ratio
-#             WeightUpdate = utils_torch.math.ReplaceNaNOrInfWithZeroNp(WeightUpdate)
-#         else:
-#             raise Exception(WeightUpdateMeasure)
-    
-#         WeightUpdateFlat = utils_torch.FlattenNpArray(WeightUpdate)
-#         WeightUpdateStat = utils_torch.math.NpStatistics(WeightUpdate)
-
-#     CorrelationMatrix = utils_torch.math.CalculatePearsonCoefficientMatrix(ResponseA, ResponseB)
-#     CorrelationMatrixFlat = utils_torch.FlattenNpArray(CorrelationMatrix)
-
-#     assert CorrelationMatrix.shape == WeightUpdate.shape
-
-#     XYs = np.stack(
-#         [
-#             CorrelationMatrixFlat,
-#             WeightUpdateFlat
-#         ],
-#         axis=1
-#     ) # [NeuronNumA * NeuronNumB, (Correlation, WeightUpdate)]
-    
-#     fig, axes = utils_torch.plot.CreateFigurePlt(4, Size="Medium")
-#     if WeightUpdateMeasure in ["Sign"]:
-#         WeightUpdateName = r'$-\frac{\partial L}{\partial w} \cdot {\rm Sign}(w) $' #r is necessary
-#         YRange = None
-#     elif WeightUpdateMeasure in ["Ratio"]:
-#         WeightUpdateName = r'$-\frac{\partial L}{\partial w} / w $'
-#         YRange = [
-#             WeightUpdateStat.Mean - 3.0 * WeightUpdateStat.Std,
-#             WeightUpdateStat.Mean + 3.0 * WeightUpdateStat.Std,
-#         ]
-#     else:
-#         raise Exception(WeightUpdateMeasure)
-        
-#     ax = utils_torch.plot.GetAx(axes, 0)
-#     Title = "%s- ResponseSimilarity"%WeightUpdateName
-#     utils_torch.plot.PlotPoints(
-#         ax, XYs, Color="Blue", Type="EmptyCircle", Size=0.5,
-#         XLabel="Response Similarity", YLabel=WeightUpdateName, 
-#         Title=Title, YRange=YRange
-#     )
-
-#     ax = utils_torch.plot.GetAx(axes, 1)
-    
-#     XYs = np.stack(
-#         [
-#             CorrelationMatrixFlat,
-#             WeightFlat,
-#         ],
-#         axis=1
-#     ) # [NeuronNumA * NeuronNumB, (Correlation, Weight)]
-
-#     Title = "Weight - ResponseSimilarity"
-#     utils_torch.plot.PlotPoints(
-#         ax, XYs, Color="Blue", Type="EmptyCircle", Size=0.5,
-#         XLabel="Response Similarity", YLabel="Connection Strength", 
-#         Title=Title,
-#     )
-
-#     ax = utils_torch.plot.GetAx(axes, 2)
-#     Title = "%s - Response Similarity Binned Mean And Std"%WeightUpdateName
-#     BinStats = utils_torch.math.CalculateBinnedMeanAndStd(CorrelationMatrixFlat, WeightUpdateFlat)
-#     utils_torch.plot.PlotMeanAndStdCurve(
-#         ax, BinStats.BinCenters, BinStats.Mean, BinStats.Std,
-#         XLabel = "Response Similarity", YLabel=WeightUpdateName, Title=Title
-#     )
-
-#     ax = utils_torch.plot.GetAx(axes, 3)
-#     BinStats = utils_torch.math.CalculateBinnedMeanAndStd(CorrelationMatrixFlat, WeightFlat)
-    
-#     utils_torch.plot.PlotMeanAndStdCurve(
-#         ax, BinStats.BinCenters, BinStats.Mean, BinStats.Std,
-#         XLabel = "Response Similarity", YLabel="Connection Strength", Title="Weight - Response Similarity Binned Mean And Std",
-#     )
-    
-#     plt.suptitle(SaveName)
-#     plt.tight_layout()
-#     # Scatter plot points num might be very large, so saving in .svg might cause unsmoothness when viewing.
-#     utils_torch.plot.SaveFigForPlt(SavePath=SaveDir + SaveName + "-Weight-Response-Similarity.png")
-#     return
-
-

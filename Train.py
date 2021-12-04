@@ -22,6 +22,8 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
         analyzer = cache.analyzer
         self.SetEpochIndex(-1)
         self.SetBatchIndex(cache.BatchNum - 1)
+        if hasattr(cache.agent, "BeforeTrain"):
+            cache.agent.BeforeTrain(self.GenerateContextInfo())
         if hasattr(cache.analyzer, "SaveAndLoad"):
             analyzer.SaveAndLoad(self.GenerateContextInfo())
         if hasattr(cache.analyzer, "BeforeTrain"):
@@ -48,8 +50,8 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
         cache = self.cache
         data = self.data
         self.SetEpochNum(EpochNum)
-        self.agent = agent
-        self.world = world
+        self.agent = cache.agent = agent
+        self.world = cache.world = world
         self.BatchParam = BatchParam
         self.OptimizeParam = OptimizeParam
         BatchNum = utils_torch.functions.Call(
@@ -73,17 +75,26 @@ class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
             BatchParam, OptimizeParam, self.Modules.LogTrain,
         )[0]
         self.SetBatchNum(BatchNum)
+
+        for CheckPoint in cache.CheckPointList:
+            IsCheckPoint, Method = CheckPoint.AddEpoch()
+            if IsCheckPoint:
+                Method(self.GenerateContextInfo())
+
         for BatchIndex in range(BatchNum):
             self.SetBatchIndex(BatchIndex)
             self.NotifyBatchIndex()
             self.TrainBatch(BatchParam, OptimizeParam)
             #cache.analyzer.AnalyzeAfterEveryBatch(self.GenerateContextInfo())
+        for CheckPoint in cache.CheckPointList:
+            IsCheckPoint, Method = CheckPoint.NotifyEndOfEpoch()
+            if IsCheckPoint:
+                Method(self.GenerateContextInfo())
+
     def TrainBatch(self, BatchParam, OptimizeParam):
         self.ReportEpochBatch()
         self.agent.Dynamics.TrainBatch(BatchParam, OptimizeParam, self.cache.LogTrain)
         for CheckPoint in self.cache.CheckPointList:
-            IsCheckPoint = CheckPoint.AddBatchAndReturnIsCheckPoint()
+            IsCheckPoint, Method = CheckPoint.AddBatch()
             if IsCheckPoint:
-                CheckPoint.GetMethod()(self.GenerateContextInfo())
-    # def SaveAndLoad(self, ContextInfo):
-    #     self.cache.analyzer.SaveAndLoad(ContextInfo)
+                Method(self.GenerateContextInfo())

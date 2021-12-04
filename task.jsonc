@@ -1,31 +1,22 @@
 {
-    "Main":[
-        { // Load json file that contain tasks to be done.
-            "LoadParamFile":[
-                {
-                    "FilePath":"./param/task-BP.jsonc",
-                    "MountPath":"&^param.task"
-                }
-            ],
-        },
-        { // Do tasks in task json file.
-            "DoTasks": "&^param.task.Main"
-        }
-    ],
-    "AddAnalysis":[
-        { // Load task json file.
-            "LoadParamFile":[
-                {
-                    "FilePath":"./param/task-BP.jsonc",
-                    "MountPath":"&^param.task"
-                }
-            ],
-        },
-        {
-            "FunctionCall": [
-                ["&#utils_torch.ParseTaskObj", "&^param.task.Train"],
-                "&#utils_torch.ExternalMethods.AddAnalysis",
-            ]
-        }
-    ]
+    "MainTask": "Train", // What to do
+    "Model.Type": "RNNLIF", // Network structure
+    "Optimize":{
+        "Method": "BP", // Optimization algorithm
+        "SubMethod": "GradientDescend", // Ordinay SGD method
+        "LearningRate": 1.0e-3,
+        "WeightDecay": 0.0,
+        "Momentum": 0.0,
+        "Dampening": 0.0,
+        "Nesterov": false,
+    },
+    "Task":{
+        "__value__": "ImageClassification",
+        "Dataset.Name": "cifar10",
+    },
+    "Train":{
+        "Epoch.Num": 200,
+        "Batch.Num": "Auto", // For image datasets, Batch.Num could be calculated from and Batch.Size.
+        "Batch.Size": 64,
+    }
 }

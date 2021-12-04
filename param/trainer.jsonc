@@ -7,21 +7,21 @@
     "Task": "$^param.task.Task",
     "Modules":{
         "CheckPointSaveAndLoad":{
-            "Type": "CheckPointForEpochBatchTraining",
+            "Type": "CheckPointForEpochBatchTrain",
             // "Epoch.Num": "$Epoch.Num",
             // "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
             "Method": "&~*cache.analyzer.SaveAndLoad"
         },
         "CheckPointAnalyze1":{
-            "Type": "CheckPointForEpochBatchTraining",
+            "Type": "CheckPointForEpochBatchTrain",
             // "Epoch.Num": "$Epoch.Num",
             // "Batch.Num": "$Batch.Num",
             "CalculateCheckPointMode": "Always",
             "Method": "&~*cache.analyzer.AfterEveryBatch"
         },
         "CheckPointAnalyze2":{
-            "Type": "CheckPointForEpochBatchTraining",
+            "Type": "CheckPointForEpochBatchTrain",
             // "Epoch.Num": "$Epoch.Num",
             // "Batch.Num": "$Batch.Num",
             "Interval.Start": 100,
@@ -69,8 +69,8 @@
         //         "&ReportEpochBatch", "&NotifyBatchIndex",
         //         "&^object.agent.ReportSelf", 
         //         "BatchParam, OptimizeParam |--> &Train",
-        //         "&CheckPointSave.AddBatchAndReturnIsCheckPoint |--> IsSave",
-        //         "&CheckPointAnalyze.AddBatchAndReturnIsCheckPoint |--> IsAnalyze",
+        //         "&CheckPointSave.AddBatch |--> IsSave",
+        //         "&CheckPointAnalyze.AddBatch |--> IsAnalyze",
         //         "&GenerateContextInfo |--> ContextInfo",
         //         "ContextInfo |--> &SaveAndLoad || Condition=%IsSave",
         //         "ContextInfo |--> &AnalyzeAfterBatch || Condition=%IsAnalyze",
