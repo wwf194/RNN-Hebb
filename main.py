@@ -123,6 +123,7 @@ def QuickScript(Args):
 # CmdArgs.QuickScript = QuickScript
 
 import Tasks
+
 def AddObjRefForParseRouters():
     ObjRefLocal = utils_torch.PyObj()
     #ObjRefLocal.LogSpatialActivity = utils.model.LogSpatialActivity

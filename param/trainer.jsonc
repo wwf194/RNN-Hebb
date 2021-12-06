@@ -1,6 +1,6 @@
 {
     "__ResolveBase__": true,
-    "Type": "TrainerForEpochBatchTrain",
+    "Type": "TrainerEpochBatch",
     "Method": "GradientDescend",
     "Batch.Num": "Auto",
     "Epoch.Num": "$^param.task.Train.Epoch.Num",

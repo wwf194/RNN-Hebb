@@ -90,8 +90,8 @@
         "ParseParamStatic",
         {
             "FunctionCall":[
-                "&^object.agent.InitFromParam",
-                "&^object.image.InitFromParam",
+                "&^object.agent.Build",
+                "&^object.image.Build",
                 ["&^object.agent.SetFullName", "agent"],
                 ["&^object.image.SetFullName", "image"],
                 "&^object.image.LoadData",
@@ -126,7 +126,7 @@
         "ParseParamStatic",
         {
             "FunctionCall":[
-                "&^object.image.InitFromParam",
+                "&^object.image.Build",
                 ["&^object.image.SetFullName", "image"],
                 "&^object.image.LoadData",
                 "&^object.image.ApplyTransformOnData",
@@ -147,7 +147,7 @@
                 //["&^object.trainer.RegisterExternalMethod", ["SaveAndLoad", "&#utils_torch.ExternalMethods.SaveAndLoad"]], // Set Save and Load Method
                 //#["&^object.trainer.RegisterExternalMethod", ["AnalyzeBeforeTrain", "&#utils_torch.ExternalMethods.AnalyzeBeforeTrain"]], // Set AnalyzeAfterBatch Method
                 //["&^object.trainer.RegisterExternalMethod", ["AnalyzeAfterBatch", "&#utils_torch.ExternalMethods.AnalyzeAfterBatch"]], // Set AnalyzeAfterBatch Method
-                "&^object.trainer.InitFromParam",
+                "&^object.trainer.Build",
             ]
         },
     ],

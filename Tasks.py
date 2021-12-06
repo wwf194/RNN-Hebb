@@ -60,12 +60,21 @@ class MainTasksForImageClassification:
         # Load param file for nemodel
         param = self.param
         cache = self.cache
+
+        cache.analyzer = AnalysisForImageClassificationTask()
+        cache.logTrain = utils_torch.log.LogAlongEpochBatchTrain()
+        cache.logTest  = utils_torch.log.LogAlongEpochBatchTrain()
+        cache.SetEpochBatchIndexLisst = [
+            cache.logTrain, cache.logTest
+        ]
+
         ModelParam = utils_torch.JsonFile2PyObj(param.Model.ParamFile)
         DatasetParam = utils_torch.JsonFile2PyObj(param.Task.Dataset.ParamFile)
         AgentParam = utils_torch.JsonFile2PyObj(param.Agent.ParamFile)
-        agent = cache.agent = Agents.Agent(param=AgentParam)
+        agent = cache.agent = Agents.Agent().LoadParam(AgentParam)
+        
         agent.SetTask(self.param.Task)
-        utils_torch.transform.ParseParamForModule(agent)
+        agent.ParseParam()
         agent.AddModule("model", ModelParam)
         agent.AddModule("dataset", DatasetParam)
 
@@ -75,35 +84,78 @@ class MainTasksForImageClassification:
         agent.OverwriteParam(
             "Modules.model.Neurons.Recurrent.IsExciInhi", Value=True # Whether or not neurons are excaitatory-inhibitory
         )
-
         # agent.Modules.model.SetInputOutputNum(
         #     agent.Modules.dataset.GetInputOutputShape()
         # )
-        agent.InitFromParam()
-
-    def Train(self, TaskParam):
+        agent.Build()
+    def Train(self):
         cache = self.cache
-        param = self.params
-
+        param = self.param
         agent = cache.agent
-        agent.CreateTrainFlow()
-        self.EnsureTensorLocation()
-        agent.SetTensorLocation(param.system.TensorLocation)
+        analyzer = cache.analyzer
+        TensorLocation = self.EnsureTensorLocation()
+        agent.SetTensorLocation(TensorLocation)
+
+        analyzer.BeforeTrain(self.GetTrainContext())
+        flow = agent.CreateTrainFlow("train", param.Train)
+        self.SetBatchNum(flow.BatchNum)
+
+        for EpochIndex in range(param.Train.Epoch.Num):
+            analyzer.BeforeEpoch(self.GetTrainContext())
+            self.SetEpochIndex(EpochIndex)
+            agent.ResetFlow("train")
+            BatchIndex = 0
+            while True:
+            # for BatchIndex in range(param.Train.Batch.Num):
+                self.SetBatchIndex(BatchIndex)
+                IsEnd = agent.RunTrainBatch(
+                    param.Optimize, param.Train, cache.logTrain
+                )
+                if IsEnd:
+                    break
+                else:
+                    BatchIndex += 1
+        agent.RemoveFlow("train")
+    def GetTrainContext(self):
+        cache = self.cache
+        return utils_torch.PyObj({
+            "Trainer": self,
+            "EpochIndex": cache.EpochIndex,
+            "BatchIndex": cache.BatchIndex
+        })
+    def SetBatchNum(self, BatchNum):
+        cache = self.cache
+        data  = self.data
+        data.BatchNum = BatchNum
+        for Obj in cache.NotifyEpochBatchList:
+            Obj.SetBatchNum(BatchNum)  
+    def SetEpochIndex(self, EpochIndex):
+        cache = self.cache
+        for Obj in cache.NotifyEpochBatchList:
+            Obj.SetEpochIndex(EpochIndex)
+    def SetBatchIndex(self, BatchIndex):
+        cache = self.cache
+        for Obj in cache.NotifyEpochBatchList:
+            Obj.SetBatchIndex(BatchIndex)
+    def Register2SetEpochBatchList(self, Obj):
+        self.cache.SetEpochBatchList.append(Obj)
     def EnsureTensorLocation(self):
         # To be implemented: tensors on multiple GPUs
         param = self.param
         if not HasAttrs(param, "system.TensorLocation"):
             TensorLocation = utils_torch.GetTensorLocation(Method="auto")
-            SetAttrs(param, "system.TensorLocation", default=TensorLocation)
-
+            SetAttrs(param, "system.TensorLocation", value=TensorLocation)
+        return param.system.TensorLocation
     def SaveAndLoad(self, SaveDir):
-        GlobalParam = utils_torch.GetGlobalParam()
-        GlobalParam.object.agent.ToFile(SaveDir)
-        GlobalParam.object.agent.FromFile(SaveDir)
-
+        cache = self.cache
+        cache.agent.ToFile(SaveDir)
+        delattr(cache, "agent")
+        agent = Agents.Agent()
+        agent.FromFile(SaveDir)
+        cache.agent = agent
         return
 
-class LogForResponseSimilarityAndWeightCorrelation(utils_torch.log.AbstractLogForBatches):
+class LogForResponseSimilarityAndWeightCorrelation(utils_torch.log.AbstractLogAlongBatch):
     def __init__(self, EpochIndex=None, BatchIndex=None):
         super().__init__(DataOnly=True)
         self.BatchCount = 0
@@ -398,14 +450,14 @@ class AnalysisForImageClassificationTask:
 
         utils_torch.AddLog("Plotting Neural Activity...")
         utils_torch.analysis.AnalyzeTimeVaryingActivitiesEpochBatch(
-            Logs=log.GetLogOfType("TimeVaryingActivity"),
+            Logs=log.GetLogOfType("ActivityAlongTime"),
             SaveDir=utils_torch.GetMainSaveDir() + "Activity-Plot/",
             ContextObj=ContextObj.Copy(),
         )
 
         utils_torch.AddLog("Plotting Activity Statistics...")
         utils_torch.analysis.AnalyzeStatAlongTrainEpochBatch(
-            Logs=log.GetLogOfType("TimeVaryingActivity-Stat"),
+            Logs=log.GetLogOfType("ActivityAlongTime-Stat"),
             SaveDir=utils_torch.GetMainSaveDir() + "Activity-Stat/",
             ContextObj=ContextObj.Copy()
         )
@@ -768,3 +820,5 @@ def AnalyzePCAAndResponseWeightCorrelation(*Args, **kw):
     )
     utils_torch.plot.SaveFigForPlt(SavePath=utils_torch.GetMainSaveDir() + "PCA-Hebb/" + "Hebb-PCA.svg")
     return
+
+import transform

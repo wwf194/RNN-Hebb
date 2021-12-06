@@ -1,11 +1,11 @@
 import utils_torch
 import Tasks
-class Trainer(utils_torch.train.TrainerForEpochBatchTrain):
+class Trainer(utils_torch.train.TrainerEpochBatch):
     def __init__(self, param, **kw):
         super().__init__(param, **kw)
-    def InitFromParam(self, IsLoad=False):
+    def Build(self, IsLoad=False):
         self.SetAnalyzer()
-        super().InitFromParam(IsLoad=IsLoad)
+        super().Build(IsLoad=IsLoad)
     def SetAnalyzer(self):
         param = self.param
         cache = self.cache

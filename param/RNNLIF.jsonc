@@ -1,6 +1,6 @@
 {
-    "Type": "RNNLIF",
-    "ClassPath": "utils_torch.transform.RNNLIF",
+    "Type": "transform.RNNLIF",
+    //"ClassPath": "transform.RNNLIF",
     "InitTasks":[],
     "Iteration.Time": 10,
     "Neurons":{
@@ -126,10 +126,10 @@
             "Bias": true,
             "NonLinear":"$~Neurons.Recurrent.NonLinear"
         },
-        "SplitHiddenAndmembranePotential":{
-            "Type": "Lambda",
-            "Lambda": "lambda data: [data[:, :($~Neurons.Recurrent.Num)], data[:, ($~Neurons.Recurrent.Num):]]"
-        },
+        // "SplitHiddenAndMembranePotential":{
+        //     "Type": "Lambda",
+        //     "Lambda": "lambda data: [data[:, :($~Neurons.Recurrent.Num)], data[:, ($~Neurons.Recurrent.Num):]]"
+        // },
         "GetLast":{
             "Type": "Lambda",
             "Lambda": "lambda output: output[:, -1, :]"
@@ -182,7 +182,7 @@
         "PredictionLoss": "$~Loss.Prediction",
         "GetConstrainWeight":{
             "Type": "FunctionsOutputs",
-            "Functions": "$Loss.WeightConstrain.GetWeightMethods"
+            "Functions": "$~Loss.WeightConstrain.GetWeightMethods"
         },
         "WeightConstrainLoss":{
             "Type": "L2Loss",
@@ -195,22 +195,23 @@
         "GradientDescend.Type":"GradientDescend"
     },
     "Dynamics":{
-        "Run": //"InternalMethod",
+        "Run": "InternalMethod",
+        // {
+        //     "In":["input", "time", "log"],
+        //     "Out":["logOutput", "logRecurrentInput", "logMembranePotential", "logFiringRate"],
+        //     "Routings":[
+        //         "input |--> &InputCache.Receive",
+        //         "RefInput=%input |--> &*GenerateZeroInitState |--> state", // States start from zero
+        //         "state |--> &SplitHiddenAndMembranePotential |--> recurrentInput, membranePotential",
+        //         "recurrentInput, membranePotential |--> &Iterate |--> recurrentInput, membranePotential || repeat=%time",
+        //         "&LogOutput.Send            |--> logOutput",
+        //         "&LogRecurrentInput.Send    |--> logRecurrentInput",
+        //         "&LogMembranePotential.Send |--> logMembranePotential",
+        //         "&LogFiringRate.Send        |--> logFiringRate",
+        //     ]
+        // },
+        "Iterate": //"InternalMethod"
         {
-            "In":["input", "time", "log"],
-            "Out":["logOutput", "logRecurrentInput", "logMembranePotential", "logFiringRate"],
-            "Routings":[
-                "input |--> &InputCache.Receive",
-                "RefInput=%input |--> &*GenerateZeroInitState |--> state", // States start from zero
-                "state |--> &SplitHiddenAndmembranePotential |--> recurrentInput, membranePotential",
-                "recurrentInput, membranePotential |--> &Iterate |--> recurrentInput, membranePotential || repeat=%time",
-                "&LogOutput.Send            |--> logOutput",
-                "&LogRecurrentInput.Send    |--> logRecurrentInput",
-                "&LogMembranePotential.Send |--> logMembranePotential",
-                "&LogFiringRate.Send        |--> logFiringRate",
-            ]
-        },
-        "Iterate":{
             "In": ["recurrentInput", "membranePotential"],
             "Out":["recurrentInput", "membranePotential"],
             "Routings":[
@@ -257,16 +258,17 @@
                 "&LogPerformance || InheritStates"
             ],
         },
-        "LogPerformance":{
-            "Routings":[
-                "totalLoss,             Name=TotalLoss,             log=%log |--> &LogLoss",
-                "mainLoss,              Name=MainLoss,              log=%log |--> &LogLoss",
-                "activityConstrainLoss, Name=ActivityConstrainLoss, log=%log |--> &LogLoss",
-                "weightConstrainLoss,   Name=WeightConstrainLoss,   log=%log |--> &LogLoss",
-                "outputLast             |--> &Probability2MostProbableIndex  |--> outputPredicted",
-                "outputPredicted,       outputTarget,               log=%log |--> &LogAccuracyForSingleClassPrediction"
-            ]
-        },
+        "LogPerformance": "ClassMethod",
+        // {
+        //     "Routings":[
+        //         "totalLoss,             Name=TotalLoss,             log=%log |--> &LogLoss",
+        //         "mainLoss,              Name=MainLoss,              log=%log |--> &LogLoss",
+        //         "activityConstrainLoss, Name=ActivityConstrainLoss, log=%log |--> &LogLoss",
+        //         "weightConstrainLoss,   Name=WeightConstrainLoss,   log=%log |--> &LogLoss",
+        //         "outputLast             |--> &Probability2MostProbableIndex  |--> outputPredicted",
+        //         "outputPredicted,       outputTarget,               log=%log |--> &LogAccuracyForSingleClassPrediction"
+        //     ]
+        // },
         "TrainBatch":{
             "In":["input", "outputTarget", "trainParam", "log"],
             "Out":[],
@@ -324,22 +326,22 @@
             "Routings":[
                 "outputs     |--> &GetLast |--> outputLast",
                 "firingRates |--> &GetLast |--> firingRatesLast",
-                "recurrentInputs,    Name=RecurrentInputs,    Type=TimeVaryingActivity, log=%log |--> &LogCache",
-                "membranePotentials, Name=MembranePotentials, Type=TimeVaryingActivity, log=%log |--> &LogCache",
-                "firingRates,        Name=FiringRates,        Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "recurrentInputs,    Name=RecurrentInputs,    Type=ActivityAlongTime, log=%log |--> &LogCache",
+                "membranePotentials, Name=MembranePotentials, Type=ActivityAlongTime, log=%log |--> &LogCache",
+                "firingRates,        Name=FiringRates,        Type=ActivityAlongTime, log=%log |--> &LogCache",
                 "firingRatesLast,    Name=FiringRatesLast,    Type=Activity           , log=%log |--> &LogCache",
-                "outputs,            Name=Outputs,            Type=TimeVaryingActivity, log=%log |--> &LogCache",
+                "outputs,            Name=Outputs,            Type=ActivityAlongTime, log=%log |--> &LogCache",
                 "outputLast,         Name=OutputLast,         Type=Activity,            log=%log |--> &LogCache",
-                //"outputTarget,     Name=OutputTarget,       Type=TimeVaryingActivity, log=%log |--> &LogCache",
-                "inputs,             Name=Inputs,             Type=TimeVaryingActivity, log=%log |--> &LogCache",
-                "inputTransformed,   Name=InputTransformed,   Type=TimeVaryingActivity, log=%log |--> &LogCache",
-                "recurrentInputs,    Name=RecurrentInputs,    Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
-                "membranePotentials, Name=MembranePotentials, Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
-                "firingRates,        Name=FiringRates,        Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
-                "outputs,            Name=Outputs,            Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
-                //"outputTarget,       Name=OutputTarget-Stat,       Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
-                "inputs,             Name=Inputs,             Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
-                "inputTransformed,   Name=InputTransformed,   Type=TimeVaryingActivity-Stat, log=%log |--> &LogStat",
+                //"outputTarget,     Name=OutputTarget,       Type=ActivityAlongTime, log=%log |--> &LogCache",
+                "inputs,             Name=Inputs,             Type=ActivityAlongTime, log=%log |--> &LogCache",
+                "inputTransformed,   Name=InputTransformed,   Type=ActivityAlongTime, log=%log |--> &LogCache",
+                "recurrentInputs,    Name=RecurrentInputs,    Type=ActivityAlongTime-Stat, log=%log |--> &LogStat",
+                "membranePotentials, Name=MembranePotentials, Type=ActivityAlongTime-Stat, log=%log |--> &LogStat",
+                "firingRates,        Name=FiringRates,        Type=ActivityAlongTime-Stat, log=%log |--> &LogStat",
+                "outputs,            Name=Outputs,            Type=ActivityAlongTime-Stat, log=%log |--> &LogStat",
+                //"outputTarget,       Name=OutputTarget-Stat,       Type=ActivityAlongTime-Stat, log=%log |--> &LogStat",
+                "inputs,             Name=Inputs,             Type=ActivityAlongTime-Stat, log=%log |--> &LogStat",
+                "inputTransformed,   Name=InputTransformed,   Type=ActivityAlongTime-Stat, log=%log |--> &LogStat",
             ]
         },
         "LogWeight":{

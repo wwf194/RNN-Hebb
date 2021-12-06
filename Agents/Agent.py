@@ -23,16 +23,12 @@ import utils
 from utils_torch.attrs import *
 from utils_torch.utils import NpArray2Tensor
 
-class Agent(utils_torch.module.AbstractModule):
+class Agent(utils_torch.module.AbstractModuleWithParam):
+    FullNameDefault = "agent"
     def __init__(self, param=None, data=None, **kw):
-        utils_torch.transform.InitForModule(
-            self, param, data,
-            FullName="agent",
-            ClassPath="Agents.Agent",
-            **kw
-        )
-    def InitFromParam(self, IsLoad=False):
-        utils_torch.transform.InitFromParamForModule(self, IsLoad)
+        return
+    def Build(self, IsLoad=False):
+        self.BeforeBuild(IsLoad)
         param = self.param
         data = self.data
         cache = self.cache
@@ -42,13 +38,13 @@ class Agent(utils_torch.module.AbstractModule):
             utils_torch.AddLog("Agent: Loading...")
         self.BuildModules()
 
-        self.Modules.dataset.InitFromParam()
+        self.Modules.dataset.Build()
         self.Modules.model.SetNeuronsNum(
             InputNum = self.Modules.dataset.GetInputOutputShape()[0],
             OutputNum = self.Modules.dataset.GetInputOutputShape()[1],
         )        
 
-        self.Modules.model.InitFromParam()
+        self.Modules.model.Build()
 
         # self.InitModules()
         self.ParseRouters()
@@ -61,30 +57,6 @@ class Agent(utils_torch.module.AbstractModule):
         SetAttrs(self.param, "Modules.%s"%name, value=module)
     def SetModelInputOutput(self):
         self.SetModelInputOutputNum()
-    def SetTrajectory2ModelInputMethod(self):
-        param = self.param
-        if param.Task in ["PredictXYs"]:
-            self.Trajectory2ModelInputInit = self.Trajectory2ModelInputInitXY
-        elif param.Task in ["PredictPlaceCellsActivity"]:
-            self.Trajectory2ModelInputInit = self.Trajectory2ModelInputInitPlaceCells
-        else:
-
-            raise Exception(param.Task)
-        EnsureAttrs(param, "Modules.model.Input.Type", default="dXY")
-        if param.Modules.model.Input.Type in ["dXY"]:
-            self.Trajectory2ModelInput = self.Trajectory2ModelInputdXY
-        elif param.Modules.model.Input.Type in ["dLDirection"]:
-            self.Trajectory2ModelInput = self.Trajectory2ModelInputdLDirection
-        else:
-            raise Exception()
-    def SetTrajectory2ModelOutputMethod(self):
-        param = self.param
-        if param.Task in ["PredictXYs"]:
-            self.Trajectory2ModelOutput = self.Trajectory2ModelOutputXYs
-        elif param.Task in ["PredictPlaceCellsActivity"]:
-            self.Trajectory2ModelOutput = self.Trajectory2ModelOutputPlaceCells
-        else:
-            raise Exception()
     def SetModelInputOutputNum(self):
         param = self.param
         # EnsureAttrs(param, "Task", default="PredictPlaceCellsActivity")
@@ -118,12 +90,13 @@ class Agent(utils_torch.module.AbstractModule):
         delattr(self.cache.flows, Name)
     def GetFlow(self, Name):
         return getattr(self.cache.flows, Name)
-    def CreateTrainFlow(self, FlowName="Default", BatchParam=None, log=None):
-        self.Modules.dataset.CreateFlow(FlowName, BatchParam, Type="Train")
-        return
-    def ResetTrainFlow(self, FlowName="Default", BatchParam=None, OptimizeParam=None, log=None):
+    def CreateTrainFlow(self, Name="Default", BatchParam=None, log=None):
+        flow = self.Modules.dataset.CreateFlow(Name, BatchParam, Type="Train")
+        setattr(self.cache.flows, Name, flow)
+        return flow
+    def ResetFlow(self, Name="Default", BatchParam=None, OptimizeParam=None, log=None):
         cache = self.cache
-        flow = self.GetFlow(FlowName)
+        flow = self.GetFlow(Name)
         self.Modules.dataset.ResetFlow(flow)
         return flow
         # "BeforeEpoch":{ // Things to do before new epoch.
@@ -135,15 +108,15 @@ class Agent(utils_torch.module.AbstractModule):
         #         "Name=Train |--> &^object.image.GetBatchNum |--> BatchNum",
         #     ]
         # },
-    def RunTrainBatch(self, FlowName="Default", BatchParam=None, OptimizeParam=None, log=None):
-        flow = self.GetFlow(FlowName)
+    def RunTrainBatch(self, Name="Default", BatchParam=None, OptimizeParam=None, log=None):
+        flow = self.GetFlow(Name)
         BatchData = self.Modules.dataset.GetBatch(flow)
         self.Modules.model.Dynamics.Optimize(
             BatchData, OptimizeParam, log=log
         )
-        return flow
-    def AfterTrain(self, FlowName="Default"):
-        self.RemoveFlow(self, FlowName)
+        return flow.IsEnd
+    def AfterTrain(self, Name="Default"):
+        self.RemoveFlow(self, Name)
     def RunTestBatchRandom(self, BatchParam, TrainParam, log):
         # Run 1 test batch. Samples are randomly selected from test set.
         BatchData = self.Modules.dataset.GetBatchRandom(BatchParam, Type="Test")
@@ -160,10 +133,10 @@ class Agent(utils_torch.module.AbstractModule):
         #         "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TestBatch",
         #     ],
         # },
-    def CreateTestFlow(self, FlowName="Default", BatchParam=None):
-        flow = self.Modules.dataset.CreateFlow(FlowName, Type="Test")
-        self.RegisterFlow(FlowName, flow)
-    def RunTestBatch(self, FlowName="Default", BatchParam=None, TrainParam=None, log=None):
+    def CreateTestFlow(self, Name="Default", BatchParam=None):
+        flow = self.Modules.dataset.CreateFlow(Name, Type="Test")
+        self.RegisterFlow(Name, flow)
+    def RunTestBatch(self, Name="Default", BatchParam=None, TrainParam=None, log=None):
         # Run 1 test batch. Samples are randomly selected from test set.
         BatchData = self.Modules.dataset.GetBatch(BatchParam, Type="Test")
         self.Modules.model.Dynamics.TestBatch(
@@ -179,10 +152,10 @@ class Agent(utils_torch.module.AbstractModule):
         #         "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TestBatch",
         #     ],
         # },
-    def RemoveTestFlow(self, FlowName="Default"):
-        self.RemoveFlow(FlowName)
+    # def RemoveTestFlow(self, Name="Default"):
+    #     self.RemoveFlow(Name)
     def SetTask(self, TaskName):
         SetAttrs(self.param, "Task", value=TaskName)
 
 __MainClass__ = Agent
-utils_torch.transform.SetMethodForTransformModule(__MainClass__)
+#utils_torch.transform.SetMethodForTransformModule(__MainClass__)

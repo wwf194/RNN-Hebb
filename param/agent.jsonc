@@ -21,7 +21,7 @@
         // "model.ModulePath": "utils_torch.transform.RNNLIF",
     },
     "Dynamics":{
-        "BeforeEpochTrain": "ClassMethod",
+        "ResetFlow": "ClassMethod",
         // { // Things to do before new epoch.
         //     "In": ["BatchParam", "OptimizeParam", "log"],
         //     "Out": ["BatchNum"],
@@ -42,7 +42,7 @@
         //         "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TrainBatch",
         //     ],
         // },
-        "InitTestEpoch": "ClassMethod",
+        "CreateTestFlow": "ClassMethod",
         // {
         //     "In": ["BatchParam", "TrainParam"],
         //     "Out": ["BatchNum"],
