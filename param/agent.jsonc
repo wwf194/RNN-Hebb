@@ -2,14 +2,6 @@
     "Task": "$^param.task.Task",
     "HiddenNeurons.Num": 500,
     "HiddenNeurons.IsExciInhi": false,
-    // "InitTasks":[
-    //     {
-    //         "FunctionCall": [
-    //             "&*SetModelInputOutput",
-    //             "&*ParseParam",
-    //         ]
-    //     },
-    // ],
     "Modules":{
         "dataset": "__ToBeSet__",
         "model": "__ToBeSet__",
@@ -33,18 +25,18 @@
         // },
         "RunTrainBatch": "ClassMethod",
         // {
-        //     "In":["BatchParam", "TrainParam", "log"],
+        //     "In":["BatchParam", "OptimizeParam", "log"],
         //     "Out":[],
         //     "Routings": [
         //         "Name=Train |--> &^object.image.GetBatch |--> DataBatch",
         //         "DataBatch, Name=Input |--> &FilterFromDict |--> ModelInput",
         //         "DataBatch, Name=Output |--> &FilterFromDict |--> ModelOutputTarget",
-        //         "ModelInput, ModelOutputTarget, TrainParam, log |--> &model.Dynamics.TrainBatch",
+        //         "ModelInput, ModelOutputTarget, OptimizeParam, log |--> &model.Dynamics.TrainBatch",
         //     ],
         // },
         "CreateTestFlow": "ClassMethod",
         // {
-        //     "In": ["BatchParam", "TrainParam"],
+        //     "In": ["BatchParam", "OptimizeParam"],
         //     "Out": ["BatchNum"],
         //     "Routings":[
         //         "Name=Test|--> &^object.image.ClearFlow",

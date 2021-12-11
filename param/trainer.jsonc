@@ -1,5 +1,5 @@
 {
-    "__ResolveBase__": true,
+    "__IsResolveBase__": true,
     "Type": "TrainerEpochBatch",
     "Method": "GradientDescend",
     "Batch.Num": "Auto",
@@ -34,12 +34,12 @@
     "Dynamics":{
         "Train": "ClassMethod",
         // "Main":{
-        //     "In": ["EpochNum", "BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
+        //     "In": ["EpochNum", "BatchParam", "OptimizeParam", "SetEpochBatchList"],
         //     "Routings":[
         //         "EpochNum |--> &SetEpochNum", 
         //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.TrainEpochInit |--> BatchNum",
         //         "BatchNum |--> &SetBatchNum",
-        //         "NotifyEpochBatchList |--> &BeforeTrain",
+        //         "SetEpochBatchList |--> &BeforeTrain",
         //         "EpochIndex=-1 |--> &SetEpochIndex", "BatchIndex=0 |--> &SetBatchIndex",
         //         "&GenerateContextInfo |--> ContextInfo",
         //         "ContextInfo |--> &SaveAndLoad",
@@ -48,9 +48,9 @@
         //     ]
         // },
         // "BeforeTrain":{
-        //     "In": ["NotifyEpochBatchList"],
+        //     "In": ["SetEpochBatchList"],
         //     "Routings":[
-        //         "NotifyEpochBatchList |--> &Register2NotifyEpochBatchList",
+        //         "SetEpochBatchList |--> &Register2SetEpochBatchList",
         //     ],
         // },
         // "TrainEpoch":{
@@ -85,9 +85,9 @@
         //     ],
         // },
         // "TestEpoch":{
-        //     "In": ["BatchParam", "OptimizeParam", "NotifyEpochBatchList"],
+        //     "In": ["BatchParam", "OptimizeParam", "SetEpochBatchList"],
         //     "Routings": [
-        //         "NotifyEpochBatchList |--> &Register2NotifyEpochBatchList",
+        //         "SetEpochBatchList |--> &Register2SetEpochBatchList",
         //         "&ClearEpoch", "&ClearBatch", "&NotifyEpochIndex",
         //         "BatchParam, OptimizeParam |--> &^object.agent.Dynamics.InitBeforeEpochTest |--> BatchNum",
         //         "BatchParam, OptimizeParam |--> &TestBatch || Repeat=%BatchNum",

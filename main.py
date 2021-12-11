@@ -44,7 +44,7 @@ def ScanConfigFile(FilePath="./config.jsonc"):
     sys.path.append(Config["Library"]["utils_torch"]["IncludePath"])
     import utils_torch
     import utils
-    utils_torch.attrs.SetAttrs(utils.GlobalParam, "config", utils_torch.PyObj(Config)) # mount config on utils_torch.GlobalParam.config
+    utils_torch.attr.SetAttrs(utils.GlobalParam, "config", utils_torch.PyObj(Config)) # mount config on utils_torch.GlobalParam.config
 ScanConfigFile()
 
 import utils_torch
@@ -95,13 +95,13 @@ def InitUtils():
             TaskParam.SaveDir += "/"
         TaskParam.SaveDir = utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, SaveDir=TaskParam.SaveDir)
     else:  # Create
-        TaskParam.SaveDir = utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, Name=TaskParam.Task)
+        TaskParam.SaveDir = utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, Name=utils_torch.GetAttrs(TaskParam.Task))
     utils_torch.SetLogGlobal(GlobalParam=utils.GlobalParam)
     utils_torch.AddLog("Using Main Save Directory: %s"%utils_torch.GetMainSaveDir())
 InitUtils()
 
 import utils
-from utils_torch.attrs import *
+from utils_torch.attr import *
 utils_torch.SetGlobalParam(utils.GlobalParam)
 utils.GlobalParam.CmdArgs = CmdArgs
 

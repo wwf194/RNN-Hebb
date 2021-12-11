@@ -46,7 +46,7 @@ class Trainer(utils_torch.train.TrainerEpochBatch):
         return self.world
     def GetAgent(self):
         return self.agent
-    def Train(self, agent, world, EpochNum, BatchParam, OptimizeParam, NotifyEpochBatchList):
+    def Train(self, agent, world, EpochNum, BatchParam, OptimizeParam, SetEpochBatchList):
         cache = self.cache
         data = self.data
         self.SetEpochNum(EpochNum)
@@ -59,7 +59,7 @@ class Trainer(utils_torch.train.TrainerEpochBatch):
             BatchParam, OptimizeParam, cache.LogTrain,
         )[0]
         self.SetBatchNum(BatchNum)
-        self.Register2NotifyEpochBatchList(NotifyEpochBatchList)
+        self.Register2SetEpochBatchList(SetEpochBatchList)
         self.BeforeTrain()
         self.NotifyEpochNum()
         self.NotifyBatchNum()
