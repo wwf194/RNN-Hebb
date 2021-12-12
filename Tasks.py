@@ -54,6 +54,8 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
     def ParseParamFileFromType(self, Type):
         if Type in ["RNNLIF"]:
             ParamFile = "./param/RNNLIF.jsonc"
+
+
         elif Type in ["cifar10"]:
             ParamFile = "./param/cifar10.jsonc"
         elif Type in ["agent"]:
@@ -73,11 +75,18 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
             "Train": utils_torch.log.LogAlongEpochBatchTrain().Build(IsLoad=False),
             "Test":  utils_torch.log.LogAlongEpochBatchTrain().Build(IsLoad=False)
         })
+
+
+        # self.AddModule("logTrain", cache.log.Train)
+        # self.AddModule("logTest",  cache.log.Test)
+
         cache.logTrain = cache.log.Train
         cache.logTest  = cache.log.Test
         cache.SetEpochBatchList = [
             cache.log.Train, cache.log.Test
         ]
+        cache.CheckPointList = []
+        
         ModelParam = utils_torch.JsonFile2PyObj(param.Model.ParamFile)
         DatasetParam = utils_torch.JsonFile2PyObj(param.Task.Dataset.ParamFile)
         AgentParam = utils_torch.JsonFile2PyObj(param.Agent.ParamFile)
@@ -85,11 +94,14 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
         
         agent.SetTask(self.param.Task)
         agent.ParseParam()
-        agent.AddModule("model", ModelParam)
-        agent.AddModule("dataset", DatasetParam)
-
+        agent.AddModuleParam("model", ModelParam)
+        agent.AddModuleParam("dataset", DatasetParam)
         config.OverwriteParam(agent)
+        config.RegisterCheckPoint(self)
         agent.Build()
+    def RegisterCheckPoint(self, CheckPoint):
+        self.cache.CheckPointList.append(CheckPoint)
+        self.cache.SetEpochBatchList.append(CheckPoint)
     def GetBatchParam(self):
         return self.param.Train
     def GetOptimizeParam(self):
@@ -102,31 +114,36 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
         TensorLocation = self.EnsureTensorLocation()
         #agent.SetTensorLocation(TensorLocation)
         agent.BeforeTrain(TensorLocation=TensorLocation)
-        
-
         flow = agent.CreateTrainFlow("train", param.Train)
         self.SetBatchNum(flow.BatchNum)
         self.SetEpochNum(param.Train.Epoch.Num)
         self.SetEpochIndex(-1)
         self.SetBatchIndex(self.GetBatchNum() - 1)
-
         analyzer.BeforeTrain(self.GetTrainContext())
+        self.SaveAndLoad(self.GetTrainContext())
 
         for EpochIndex in range(param.Train.Epoch.Num):
+            utils_torch.AddLog("Epoch%d"%(EpochIndex))
             analyzer.BeforeEpoch(self.GetTrainContext())
             self.SetEpochIndex(EpochIndex)
             agent.ResetFlow("train")
             BatchIndex = 0
             while True:
-            # for BatchIndex in range(param.Train.Batch.Num):
                 self.SetBatchIndex(BatchIndex)
-                IsEnd = agent.RunTrainBatch(
-                    "train", param.Optimize, cache.logTrain
-                )
+                IsEnd = agent.RunTrainBatch("train", param.Optimize, cache.logTrain)
+
+                for CheckPoint in self.cache.CheckPointList:
+                    if CheckPoint.IsCheckPoint():
+                        CheckPoint.GetMethod()(self.GetTrainContext())
                 if IsEnd:
                     break
-                else:
-                    BatchIndex += 1
+                BatchIndex += 1
+
+            for CheckPoint in self.cache.CheckPointList:
+                IsCheckPoint, Method = CheckPoint.NotifyEndOfEpoch()
+                if IsCheckPoint:
+                    Method(self.GetTrainContext())    
+    
         agent.RemoveFlow("train")
     def GetTrainContext(self):
         cache = self.cache
@@ -163,14 +180,15 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
             SetAttrs(param, "system.TensorLocation", value=TensorLocation)
         utils_torch.SetTensorLocation(param.system.TensorLocation)
         return param.system.TensorLocation
-    def SaveAndLoad(self, SaveDir):
+    def SaveAndLoad(self, ContextObj):
+        SaveDir = utils_torch.GetMainSaveDir() + "SavedModel/" \
+            + "Epoch%d-Batch%d/"%(ContextObj.EpochIndex, ContextObj.BatchIndex)
         cache = self.cache
-        cache.agent.ToFile(SaveDir)
-        del cache.agent
+        cache.agent.ToFile(SaveDir, "agent")
+        #del cache.agent
         delattr(cache, "agent")
-        agent = Agents.Agent()
-        agent.FromFile(SaveDir)
-        cache.agent = agent
-        return
+        cache.agent = Agents.Agent().FromFile(SaveDir, "agent").Build(IsLoad=True)
+        return self
+
 
 import transform

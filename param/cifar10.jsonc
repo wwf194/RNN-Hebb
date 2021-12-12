@@ -23,11 +23,7 @@
         "Md5": "5531e1661fcbb3c821b868536dc6540c"
     },
     "Modules":{
-        "CreateFlow":{
-            "Type": "Internal", // Internal methods.
-        },
-        "GetBatch":{
-            "Type": "Internal",
-        },
+        "CreateFlow": "ClassMethod",
+        "GetBatch":"ClassMethod",
     },
 }

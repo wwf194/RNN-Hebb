@@ -55,7 +55,9 @@ class Agent(utils_torch.module.AbstractModuleWithParam):
             utils_torch.AddLog("Agent: Initialized.")
         else:
             utils_torch.AddLog("Agent: Loaded.")
-    def AddModule(self, name, module):
+        
+        return self
+    def AddModuleParam(self, name, module):
         SetAttrs(self.param, "Modules.%s"%name, value=module)
     def SetModelInputOutput(self):
         self.SetModelInputOutputNum()
