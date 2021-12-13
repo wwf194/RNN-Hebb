@@ -475,6 +475,7 @@ def AnalyzePCAAndResponseWeightCorrelation(*Args, **kw):
         Labels = ["$100\%$", "$99\%$", "$95\%$", "$80\%$", "$50\%$"],
         Title = "Effective Dimension Num - Weight~ResponseSimilarity Correlation"
     )
+    plt.tight_layout()
     utils_torch.plot.SaveFigForPlt(SavePath=utils_torch.GetMainSaveDir() + "PCA-Hebb/" + "Hebb-PCA.svg")
     return
 

@@ -9,9 +9,10 @@ class MLP(utils_torch.transform.MLP):
         param.FromDict({
             "Analyze":{
                 ""
-
             }
         })
+    def AddAnalyzeWeightAndResponseCorrelationPair(self, param):
+        return
     def LogPerformance(self, states , log:utils_torch.log.LogAlongEpochBatchTrain):
         self.LogLoss("TotalLoss", states.totalLoss, Type="Loss")
         self.LogLoss("MainLoss",  states.mainLoss,  Type="Loss")

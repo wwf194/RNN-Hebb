@@ -21,9 +21,12 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
         cache = self.cache = utils_torch.EmptyPyObj()    
     
         self.ParseParam()
-   
+        utils_torch.ChangeMainSaveDir(
+            utils_torch.RenameDirIfExists("./log/" + "%s-%s-%s/"%(param.Task.Dataset.Name, param.Optimize.Method, param.Model.Type))
+        )
         if param.MainTask in ["Train"]:
             SetAttrs(param, "Batch.Num", "Auto")
+            #param.Batch.Num = "Auto"
             cache.BatchParam = utils_torch.PyObj({
                 "Batch.Size": param.Train.Batch.Size,
                 "Batch.Num":  param.Train.Batch.Num
@@ -54,8 +57,6 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
     def ParseParamFileFromType(self, Type):
         if Type in ["RNNLIF"]:
             ParamFile = "./param/RNNLIF.jsonc"
-
-
         elif Type in ["cifar10"]:
             ParamFile = "./param/cifar10.jsonc"
         elif Type in ["agent"]:
@@ -65,7 +66,7 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
         return ParamFile
     
     def InitObjects(self):
-        GlobalParam = utils_torch.GetGlobalParam()
+        # GlobalParam = utils_torch.GetGlobalParam()
         # Load param file for nemodel
         param = self.param
         cache = self.cache
@@ -75,7 +76,6 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
             "Train": utils_torch.log.LogAlongEpochBatchTrain().Build(IsLoad=False),
             "Test":  utils_torch.log.LogAlongEpochBatchTrain().Build(IsLoad=False)
         })
-
 
         # self.AddModule("logTrain", cache.log.Train)
         # self.AddModule("logTest",  cache.log.Test)
@@ -99,6 +99,8 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
         config.OverwriteParam(agent)
         config.RegisterCheckPoint(self)
         agent.Build()
+
+        
     def RegisterCheckPoint(self, CheckPoint):
         self.cache.CheckPointList.append(CheckPoint)
         self.cache.SetEpochBatchList.append(CheckPoint)
@@ -143,7 +145,6 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
                 IsCheckPoint, Method = CheckPoint.NotifyEndOfEpoch()
                 if IsCheckPoint:
                     Method(self.GetTrainContext())    
-    
         agent.RemoveFlow("train")
     def GetTrainContext(self):
         cache = self.cache

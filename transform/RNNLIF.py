@@ -178,6 +178,7 @@ class RNNLIF(utils_torch.transform.RNNLIF):
         self.LogCache("RecurrentInputList", recurrentInputList, "ActivityAlongTime", log)
         self.LogCache("MembranePotentialList", membranePotentialList, "ActivityAlongTime", log)
         self.LogCache("FiringRateList", firingRateList, "ActivityAlongTime", log)
+        self.LogCache("FiringRateLast", firingRateList[:, -1, :], "Activity", log)
         self.LogCache("InputList", inputList, "ActivityAlongTime", log)
         self.LogCache("InputTransformed", inputTransformed, "ActivityAlongTime", log)
         
@@ -219,7 +220,7 @@ class RNNLIF(utils_torch.transform.RNNLIF):
 
         trainWeight = self.GetTrainWeight()
         MinusGrad = Modules.GradientDescend(trainWeight, OptimizeParam, Update=IsTrain)
-        super().LogActivity("FiringRateLast", output, "Activity", log)
+        super().LogActivity("OutputLast", output, "Activity", log)
         self.LogLossDict(
             "Loss",
             {

@@ -93,9 +93,9 @@ def InitUtils():
     if hasattr(TaskParam, "SaveDir"):
         if not TaskParam.SaveDir.endswith("/"):
             TaskParam.SaveDir += "/"
-        TaskParam.SaveDir = utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, SaveDir=TaskParam.SaveDir)
+        TaskParam.SaveDir = utils_torch.CreateMainSaveDir(GlobalParam=utils.GlobalParam, SaveDir=TaskParam.SaveDir)
     else:  # Create
-        TaskParam.SaveDir = utils_torch.SetMainSaveDir(GlobalParam=utils.GlobalParam, Name=utils_torch.GetAttrs(TaskParam.Task))
+        TaskParam.SaveDir = utils_torch.CreateMainSaveDir(GlobalParam=utils.GlobalParam, Name=utils_torch.GetAttrs(TaskParam.Task))
     utils_torch.SetLogGlobal(GlobalParam=utils.GlobalParam)
     utils_torch.AddLog("Using Main Save Directory: %s"%utils_torch.GetMainSaveDir())
 InitUtils()

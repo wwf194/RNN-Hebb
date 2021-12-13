@@ -55,9 +55,10 @@ class Agent(utils_torch.module.AbstractModuleWithParam):
             utils_torch.AddLog("Agent: Initialized.")
         else:
             utils_torch.AddLog("Agent: Loaded.")
-        
         return self
+    
     def AddModuleParam(self, name, module):
+        module.SetResolveBase()
         SetAttrs(self.param, "Modules.%s"%name, value=module)
     def SetModelInputOutput(self):
         self.SetModelInputOutputNum()
@@ -72,12 +73,7 @@ class Agent(utils_torch.module.AbstractModuleWithParam):
         utils_torch.parse.ParsePyObjStatic(self.param, ObjCurrent=self.param, ObjRoot=utils_torch.GetGlobalParam(), InPlace=True)
         #utils_torch.parse.ParsePyObjDynamic(self.param, ObjCurrent=self.param, ObjRoot=utils.GlobalParam, InPlace=True)
         return
-    # def SetTensorLocation(self, Location="cpu", Recur=True):
-    #     self.cache.TensorLocation = Location
-    #     if Recur:
-    #         for Name, Module in ListAttrsAndValues(self.cache.Modules):
-    #             if hasattr(Module, "SetTensorLocation"):
-    #                 Module.SetTensorLocation(Location)
+
     def GetTensorLocation(self):
         return self.cache.TensorLocation
     # def Log(self, data, Name="Undefined"):
