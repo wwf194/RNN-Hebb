@@ -4,13 +4,19 @@
 import utils_torch
 # Overwrite Param Here
 def OverwriteParam(agent):
-    agent.OverwriteParam(
-        "Modules.model.Neurons.Recurrent.Num", Value=500 # Neurons Num
-    )
-    agent.OverwriteParam(
-        "Modules.model.Neurons.Recurrent.IsExciInhi", Value=False # Whether or not neurons are excaitatory-inhibitory
-    )
-
+    if "RNNLIF" in agent.param.Modules.model.Type:
+        agent.OverwriteParam(
+            "Modules.model.Neurons.Recurrent.Num", Value=500 # Neurons Num
+        )
+        agent.OverwriteParam(
+            "Modules.model.Neurons.Recurrent.IsExciInhi", Value=False # Whether or not neurons are excaitatory-inhibitory
+        )
+    elif "MLP" in agent.param.Modules.model.Type:
+        agent.OverwriteParam(
+            "Modules.model.Neurons.IsExciInhi", Value=False # Whether or not neurons are excaitatory-inhibitory
+        )
+    else:
+        raise Exception()
 
 def RegisterCheckPoint(Trainer):
     Trainer.RegisterCheckPoint(

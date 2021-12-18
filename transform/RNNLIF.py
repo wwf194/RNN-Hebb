@@ -1,6 +1,8 @@
 
+import transform
 import utils_torch
-class RNNLIF(utils_torch.transform.RNNLIF):
+
+class RNNLIF(utils_torch.transform.RNNLIF, transform.AbstractModel):
     def __init__(self, **kw):
         super().__init__(**kw)
     def LogPerformance(self, states , log:utils_torch.log.LogAlongEpochBatchTrain):
@@ -101,14 +103,7 @@ class RNNLIF(utils_torch.transform.RNNLIF):
         #         "inputTransformed,   Name=InputTransformed,   Type=ActivityAlongTime-Stat, log=%log |--> &LogStat",
         #     ]
         # },
-    def RunTrainBatch(self, Data, OptimizeParam, log):
-        self.LogWeight(log)
-        self.RunBatch(Data, OptimizeParam, log, IsTrain=True)
-        self.LogActivity(log)
-    def RunTestBatch(self, Data, OptimizeParam, log):
-        self.LogWeight(log)
-        self.RunBatch(Data, OptimizeParam, log, IsTrain=False)
-        self.LogActivity(log)
+
     def RunBatch(self, Data, OptimizeParam, log:utils_torch.log.LogAlongEpochBatchTrain, IsTrain=True):
         param = self.param
         Input = Data['Input']
@@ -273,6 +268,5 @@ class RNNLIF(utils_torch.transform.RNNLIF):
         Modules.OutputList.append(output)
         Modules.FiringRateList.append(firingRate)
         return recurrentInput, membranePotential
-
 
 utils_torch.module.RegisterExternalModule("transform.RNNLIF", RNNLIF)

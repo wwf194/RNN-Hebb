@@ -1,6 +1,10 @@
 {
     "MainTask": "Train", // What to do
-    "Model.Type": "RNNLIF", // Network structure
+    //"Model.Type": "RNNLIF", // Network structure
+    "Model": {
+        "Type": "MLP", // Network structure
+        "ParamFile": "./param/MLP-3.jsonc", 
+    },
     "Optimize":{
         "Method": "BP", // Optimization algorithm
         "SubMethod": "GradientDescend", // Ordinay SGD method

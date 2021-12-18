@@ -41,12 +41,15 @@ class Agent(utils_torch.module.AbstractModuleWithParam):
         self.BuildModules()
 
         self.Modules.dataset.Build()
-        self.Modules.model.SetNeuronsNum(
-            InputNum = self.Modules.dataset.GetInputOutputShape()[0],
-            OutputNum = self.Modules.dataset.GetInputOutputShape()[1],
-        )        
 
-        self.Modules.model.Build()
+        self.Modules.model.OverwriteParam(
+            "Neurons.Input.Num", self.Modules.dataset.GetInputOutputShape()[0]
+        )
+        self.Modules.model.OverwriteParam(
+            "Neurons.Output.Num", self.Modules.dataset.GetInputOutputShape()[1]
+        )
+
+        self.Modules.model.Build(IsLoad=IsLoad)
 
         # self.InitModules()
         self.ParseRouters()
@@ -94,6 +97,8 @@ class Agent(utils_torch.module.AbstractModuleWithParam):
         TensorLocation = kw['TensorLocation']
         self.SetTensorLocation(TensorLocation)
         self.Modules.model.SetTrainWeight() # SetTensorLocation --> SetTrainWeight
+        assert HasAttr(self.Modules.model.Dynamics.RunTestBatch)
+        assert HasAttr(self.Modules.model.Dynamics.RunTrainBatch)
     def CreateTrainFlow(self, Name="Default", BatchParam=None, log=None):
         flow = self.Modules.dataset.CreateFlow(Name, BatchParam, Type="Train")
         self.RegisterFlow(Name, flow)

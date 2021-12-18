@@ -1,0 +1,24 @@
+{
+    "Type": "transform.MLP",
+    "Neurons":{
+        "Input.Num":  "__ToBeSet__",
+        "Output.Num": "__ToBeSet__",
+        "IsExciInhi": "__ToBeSet__",
+    },
+    "Layers":{
+        "Num": 3,
+        "Neurons.Num":[
+            "$Neurons.Input.Num",
+            "Auto", "Auto",
+            "$Neurons.Output.Num"
+        ],
+        "Type": "f(Wx+b)",
+        "Weight.Init":{
+            "Method": "KaimingUniform",
+            "Mode":   "BasedOnInputNum",
+        } 
+    },
+    "Modules":{
+
+    },
+}

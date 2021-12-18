@@ -1,16 +1,42 @@
 
+import transform
 import utils_torch
-class MLP(utils_torch.transform.MLP):
+from transform import AbstractModel
+
+class MLP(utils_torch.transform.MLP, AbstractModel):
     def __init__(self, **kw):
         super().__init__(**kw)
-    def Build(self, IsLoad=True):
+    def Build(self, IsLoad=False):
         super().Build(IsLoad)
         param = self.param
         param.FromDict({
             "Analyze":{
-                ""
+                "ResponseAndWeightPairs": self.GetResponseAndWeightPair()
             }
         })
+        AbstractModel.SetDynamics(self)
+    def GetResponseAndWeightPair(self):
+        cache = self.cache
+        param = self.param
+        Pairs = []
+        Pairs.append({
+            "ResponseA": "Input",
+            "ResponseB": "Layer0",
+            "Weight": "Layer0.Weight"
+        })
+        for LayerIndex in range(1, cache.LayerNum):
+            Pairs.append({
+                "ResponseA": "Layer%d"%(LayerIndex - 1),
+                "ResponseB": "Layer%d"%(LayerIndex),
+                "Weight": "Layer%d.Weight"%(LayerIndex)
+            })
+        
+        FullName = param.FullName
+        for Pair in Pairs:
+            Pair['ResponseA'] = FullName + Pair['ResponseA']
+            Pair['ResponseB'] = FullName + Pair['ResponseB']
+            Pair['Weight'] = FullName + Pair['Weight']
+
     def AddAnalyzeWeightAndResponseCorrelationPair(self, param):
         return
     def LogPerformance(self, states , log:utils_torch.log.LogAlongEpochBatchTrain):
@@ -284,4 +310,4 @@ class MLP(utils_torch.transform.MLP):
         return recurrentInput, membranePotential
 
 
-utils_torch.module.RegisterExternalModule("transform.RNNLIF", RNNLIF)
+utils_torch.module.RegisterExternalModule("transform.MLP", MLP)

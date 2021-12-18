@@ -25,13 +25,12 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
             utils_torch.RenameDirIfExists("./log/" + "%s-%s-%s/"%(param.Task.Dataset.Name, param.Optimize.Method, param.Model.Type))
         )
         if param.MainTask in ["Train"]:
-            SetAttrs(param, "Batch.Num", "Auto")
-            #param.Batch.Num = "Auto"
+            #SetAttrs(param, "Batch.Num", "Auto")
+            param.Batch.Num = "Auto"
             cache.BatchParam = utils_torch.PyObj({
                 "Batch.Size": param.Train.Batch.Size,
                 "Batch.Num":  param.Train.Batch.Num
             })
-
             EnsureAttrs(param, "Agent.ParamFile", default="./param/agent.jsonc")
         else:
             raise Exception(param.MainTask)
@@ -57,6 +56,8 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
     def ParseParamFileFromType(self, Type):
         if Type in ["RNNLIF"]:
             ParamFile = "./param/RNNLIF.jsonc"
+        elif Type in ["RNNLIF"]:
+            ParamFile = "./param/MLP.jsonc"   
         elif Type in ["cifar10"]:
             ParamFile = "./param/cifar10.jsonc"
         elif Type in ["agent"]:
@@ -77,9 +78,6 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
             "Test":  utils_torch.log.LogAlongEpochBatchTrain().Build(IsLoad=False)
         })
 
-        # self.AddModule("logTrain", cache.log.Train)
-        # self.AddModule("logTest",  cache.log.Test)
-
         cache.logTrain = cache.log.Train
         cache.logTest  = cache.log.Test
         cache.SetEpochBatchList = [
@@ -98,7 +96,7 @@ class MainTasksForImageClassification(utils_torch.log.AbstractModuleAlongEpochBa
         agent.AddModuleParam("dataset", DatasetParam)
         config.OverwriteParam(agent)
         config.RegisterCheckPoint(self)
-        agent.Build()
+        agent.Build(IsLoad=False)
 
         
     def RegisterCheckPoint(self, CheckPoint):
